@@ -1,0 +1,8 @@
+[package]
+name = "sweem_core"
+edition = "2024"
+
+[dependencies]
+sweem_registry = { local = "../sweem_registry" }
+openzeppelin_math = { git = "https://github.com/OpenZeppelin/contracts-sui.git", subdir = "math/core", rev = "main" }
+openzeppelin_access = { git = "https://github.com/OpenZeppelin/contracts-sui.git", subdir = "contracts/access", rev = "main" }

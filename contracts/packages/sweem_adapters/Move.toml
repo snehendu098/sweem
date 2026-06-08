@@ -1,0 +1,7 @@
+[package]
+name = "sweem_adapters"
+edition = "2024"
+
+[dependencies]
+sweem_core = { local = "../sweem_core" }
+sweem_registry = { local = "../sweem_registry" }

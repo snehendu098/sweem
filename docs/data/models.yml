@@ -1,0 +1,179 @@
+# Sweem Data Model
+# Split: DB (metadata/display) vs Contract (on-chain source of truth)
+
+# ─────────────────────────────────────────
+# DATABASE LAYER
+# ─────────────────────────────────────────
+
+db:
+
+  Organization:
+    wallet_address: string     # PK, on-chain identity
+    name: string
+    logo_url: string
+    created_at: timestamp
+
+  PaymentGroup:
+    id: uuid                   # PK
+    org_wallet: string         # FK → Organization
+    name: string
+    created_at: timestamp
+    # token and on_chain_pool_id moved to PaymentGroupPool (one per token)
+
+  PaymentGroupPool:            # one row per token per group
+    id: uuid                   # PK
+    payment_group_id: uuid     # FK → PaymentGroup
+    token: string              # USDC | SUI | etc.
+    on_chain_pool_id: string   # object ID of that token's StreamPool on-chain
+    # adding a new token = new row here + new StreamPool deployment, no contract changes
+
+  Employee:
+    id: uuid
+    alias: string
+    wallet_address: string     # can appear in multiple groups / orgs
+    payment_group_id: uuid     # FK → PaymentGroup
+    created_at: timestamp
+    # rates moved to EmployeeTokenRate (one per token)
+
+  EmployeeTokenRate:           # one row per token per employee
+    id: uuid
+    employee_id: uuid          # FK → Employee
+    token: string              # must match a token in PaymentGroupPool for that group
+    # MODE A — individual rate
+    rate_amount: number        # e.g. 5000
+    rate_type: string          # MONTHLY | HOURLY
+    # MODE B — percentage of group total
+    percentage: number         # e.g. 30 (%)
+
+  EmployeeVault:
+    id: uuid
+    employee_wallet: string
+    name: string               # user-defined vault name
+    on_chain_vault_id: string  # object ID of EmployeeVault on-chain
+    created_at: timestamp
+
+  VaultAllocation:             # UI pre-fill for employee claim routing
+    id: uuid
+    vault_id: uuid             # FK → EmployeeVault
+    token: string              # USDC | SUI | etc.
+    yield_type: string         # L | Y | S
+    percentage: number         # % of this token going to this protocol
+    protocol: string           # SCALLOP | NAVI | USDY | BUCKET | AUTO_MAX_YIELD
+                               # AUTO_MAX_YIELD resolved off-chain, passed explicitly to contract
+
+  LastYieldRoute:              # org UI pre-fill for next deposit (not source of truth)
+    id: uuid
+    payment_group_pool_id: uuid  # FK → PaymentGroupPool (scoped per token per group)
+    protocol: string             # SCALLOP | NAVI | USDY | BUCKET
+    yield_type: string           # L | Y | S
+    allocation_pct: number       # must sum to 100 per PaymentGroupPool
+
+
+# ─────────────────────────────────────────
+# CONTRACT LAYER (Sui Move — on-chain)
+# ─────────────────────────────────────────
+
+contract:
+
+  StreamPool:                  # Shared Object, one per PaymentGroupPool (one per token per group)
+    id: UID
+    org: address
+    total_deposited: u64
+    total_claimed: u64
+    balance: Balance<T>        # raw uninvested tokens (single token per pool)
+    streams: vector<Stream>
+    # min_claim enforced dynamically in claim: WEEK_MS * rate_amount / rate_period_ms / 10 (10% of weekly income)
+    # dynamic fields keyed by protocol name:
+    #   "scallop" → ScallopPosition { receipt_obj, deposited: u64 }
+    #   "navi"    → NaviPosition    { receipt_obj, deposited: u64 }
+    #   "usdy"    → USDYBalance     { amount: u64 }
+    #   "bucket"  → BucketLST      { amount: u64 }
+
+  Stream:                      # nested inside StreamPool.streams
+    employee: address
+    rate_amount: u128          # tokens earned per rate_period_ms (u128 for 18-dec token support)
+    rate_period_ms: u64        # period for rate_amount (e.g. 2_592_000_000 = 30 days in ms)
+    pending_balance: u64       # crystallized earnings before a rate change; added to claimable
+    claimed_at: u64            # timestamp of last claim (Clock ms)
+    total_paused_ms: u64       # accumulates on each resume, resets on claim
+    paused_at: Option<u64>     # Some = currently paused at this timestamp
+    stopped_at: Option<u64>    # Some = permanently stopped at this timestamp
+
+  # Stream state machine:
+  #   ACTIVE  → paused_at = None, stopped_at = None
+  #   PAUSED  → paused_at = Some(ts), stopped_at = None
+  #   STOPPED → paused_at = None, stopped_at = Some(ts)
+  #
+  # Claimable formula:
+  #   effective_end = paused_at ?? stopped_at ?? current_clock_ms
+  #   new_earned    = (effective_end - claimed_at - total_paused_ms) * rate_amount / rate_period_ms
+  #   claimable     = pending_balance + new_earned
+  #
+  # On stop while paused:
+  #   stopped_at = paused_at, paused_at = None
+  #
+  # Accounting invariant:
+  #   total_deposited - total_claimed = balance + sum(all yield position values)
+
+  EmployeeVault:               # Owned Object, transferred to employee on creation
+    id: UID
+    owner: address
+    # dynamic fields keyed by token type string (e.g. "USDC", "SUI"):
+    #   "<token>" → TokenBucket
+
+  TokenBucket:                 # dynamic field on EmployeeVault, one per token
+    id: UID
+    raw_balance: u64           # uninvested portion of this token
+    # dynamic fields keyed by protocol name:
+    #   "scallop" → ScallopPosition
+    #   "navi"    → NaviPosition
+    #   "usdy"    → USDYBalance
+    #   "bucket"  → BucketLST
+
+
+# ─────────────────────────────────────────
+# RATE PARAMETER CALCULATION (at fund time)
+# ─────────────────────────────────────────
+
+# Backend computes (rate_amount, rate_period_ms) per EmployeeTokenRate at fund time
+# Division is deferred to claim time: oz_u128::mul_div(elapsed, rate_amount, rate_period_ms)
+#
+# MODE A — individual rate:
+#   MONTHLY: rate_period_ms = 2_592_000_000 (30 days), rate_amount = base_units_per_month
+#   HOURLY:  rate_period_ms = 3_600_000,               rate_amount = base_units_per_hour
+#
+# MODE B — percentage of group total:
+#   rate_period_ms = group_total_rate_period_ms
+#   rate_amount    = floor(percentage / 100 * group_total_rate_amount)
+#
+# Multi-token: each token's StreamPool has its own streams with independently
+# calculated (rate_amount, rate_period_ms) from the corresponding EmployeeTokenRate rows
+
+
+# ─────────────────────────────────────────
+# KEY FLOWS
+# ─────────────────────────────────────────
+
+# Org deposits / tops up (per token — one tx per PaymentGroupPool):
+#   1. Specify routing (protocol + allocation %) inline at tx time
+#   2. StreamPool.balance increases, total_deposited increases
+#   3. Funds routed into yield positions atomically
+#   4. DB LastYieldRoute updated for UI pre-fill
+#   Multi-token deposit = one PTB per token, or batched PTBs
+
+# Employee claims:
+#   1. Specify target vault + allocation inline at tx time
+#      (AUTO_MAX_YIELD resolved off-chain, explicit protocol passed to contract)
+#   2. Claimable amount calculated via formula above
+#   3. Funds withdrawn from StreamPool yield positions → StreamPool.total_claimed increases
+#   4. Funds routed into EmployeeVault TokenBucket yield positions atomically
+#   5. DB VaultAllocation updated for UI pre-fill
+
+# Org removes employee:
+#   1. Stream.stopped_at = current_clock_ms (or paused_at if currently paused)
+#   2. Freed funds remain in StreamPool.balance (extend runway for other employees)
+#   3. Employee can still claim earned amount up to stopped_at
+
+# Estimated runway per token (frontend calculation):
+#   runway_ms = pool_balance / sum(rate_amount / rate_period_ms for all ACTIVE streams in that StreamPool)
+#   shown per token on the org dashboard

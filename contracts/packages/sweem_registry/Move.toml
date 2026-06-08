@@ -1,0 +1,6 @@
+[package]
+name = "sweem_registry"
+edition = "2024"
+
+[dependencies]
+openzeppelin_access = { git = "https://github.com/OpenZeppelin/contracts-sui.git", subdir = "contracts/access", rev = "main" }

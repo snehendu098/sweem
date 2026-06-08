@@ -1,0 +1,12 @@
+[package]
+name = "sweem_adapters"
+edition = "2024"
+
+[dependencies]
+sweem_core = { local = "../sweem_core" }
+sweem_registry = { local = "../sweem_registry" }
+lending_core = { git = "https://github.com/naviprotocol/navi-smart-contracts.git", subdir = "lending_core", rev = "473b0934235d6dc1357fa4309308167c6d175fd1" }
+oracle = { git = "https://github.com/naviprotocol/navi-smart-contracts.git", subdir = "oracle", rev = "473b0934235d6dc1357fa4309308167c6d175fd1" }
+openzeppelin_math = { git = "https://github.com/OpenZeppelin/contracts-sui.git", subdir = "math/core", rev = "6df7fd42f6560a65bc487a9d5858ee22f65400f7" }
+protocol = { git = "https://github.com/scallop-io/sui-lending-protocol.git", subdir = "contracts/protocol", rev = "334e93a1232a1d9417466080ae24491be3f7b27c" }
+x = { git = "https://github.com/scallop-io/sui-lending-protocol.git", subdir = "contracts/libs/x", rev = "334e93a1232a1d9417466080ae24491be3f7b27c" }

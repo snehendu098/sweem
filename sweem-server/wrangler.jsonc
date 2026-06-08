@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sweem-server",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-06",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "env": {
+    "testnet": {
+      "name": "sweem-server-testnet",
+      "vars": { "SUI_NETWORK": "testnet" },
+      "hyperdrive": [{ "binding": "DB", "id": "REPLACE_TESTNET_HYPERDRIVE_ID" }]
+    },
+    "mainnet": {
+      "name": "sweem-server-mainnet",
+      "vars": { "SUI_NETWORK": "mainnet" },
+      "hyperdrive": [{ "binding": "DB", "id": "REPLACE_MAINNET_HYPERDRIVE_ID" }]
+    }
+  }
+}
