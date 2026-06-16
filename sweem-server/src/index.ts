@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import type { AppEnv } from './types'
 import orgRoutes     from './routes/orgs.routes'
@@ -6,6 +7,21 @@ import vaultRoutes   from './routes/vaults.routes'
 import computeRoutes from './routes/compute.routes'
 
 const app = new Hono<AppEnv>()
+
+// CORS — required for the browser client (client-test). Allowed origins come from
+// the ALLOWED_ORIGIN env var (comma-separated); defaults to the local Next.js dev
+// origin. We echo back the request origin when it is in the allowlist.
+app.use('*', cors({
+  origin: (origin, c) => {
+    const allowed = (c.env.ALLOWED_ORIGIN ?? 'http://localhost:3000')
+      .split(',')
+      .map((o: string) => o.trim())
+    return allowed.includes(origin) ? origin : (allowed[0] ?? null)
+  },
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'X-Wallet-Address', 'X-Signature', 'X-Message'],
+  maxAge: 600,
+}))
 
 app.route('/v1/orgs',    orgRoutes)
 app.route('/v1/vaults',  vaultRoutes)

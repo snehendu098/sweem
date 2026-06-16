@@ -1,5 +1,5 @@
 import {
-  pgTable, text, uuid, timestamp, numeric, unique, check, index
+  pgTable, text, uuid, timestamp, numeric, unique, check, index, foreignKey
 } from 'drizzle-orm/pg-core'
 import { sql, relations } from 'drizzle-orm'
 
@@ -78,11 +78,18 @@ export const vaultAllocations = pgTable('vault_allocations', {
 
 export const lastYieldRoutes = pgTable('last_yield_routes', {
   id: uuid('id').primaryKey().defaultRandom(),
-  paymentGroupPoolId: uuid('payment_group_pool_id').notNull().references(() => paymentGroupPools.id, { onDelete: 'cascade' }),
+  paymentGroupPoolId: uuid('payment_group_pool_id').notNull(),
   protocol: text('protocol').notNull(),
   yieldType: text('yield_type').notNull(),
   allocationPct: numeric('allocation_pct').notNull(),
 }, (t) => [
+  // Explicit short FK name — the auto-generated name overflowed Postgres' 63-char
+  // identifier limit and was being truncated (NOTICE 42622).
+  foreignKey({
+    columns: [t.paymentGroupPoolId],
+    foreignColumns: [paymentGroupPools.id],
+    name: 'lyr_pgp_fk',
+  }).onDelete('cascade'),
   unique().on(t.paymentGroupPoolId, t.protocol),
   index('idx_lyr_pool').on(t.paymentGroupPoolId),
 ])

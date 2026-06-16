@@ -266,3 +266,64 @@ public fun vault_withdraw_navi<T>(
 
     event::emit(NaviReturned { object_id: vault_id, gross, yield_fee: fee, net: gross - fee });
 }
+
+// Employee-side claim helper for a pool split across multiple protocols. Pulls up to
+// `max_amount` of the CALLER'S OWN claim shortfall out of Navi into the pool's idle
+// balance, then returns (it does NOT claim). Compose in a PTB with any other
+// `cover_claim_from_*` calls and a final `stream_pool::claim`, which asserts overall
+// sufficiency. Safe to be public: the draw is bounded by the caller's own claimable,
+// so non-employees and over-draws are no-ops — no grief vector.
+// Pass `max_amount` <= the pool's current Navi position (the frontend reads it): use
+// the full shortfall to drain Navi first, or a smaller value to split across protocols.
+public fun cover_claim_from_navi<T>(
+    pool: &mut StreamPool<T>,
+    storage: &mut Storage,
+    navi_pool: &mut Pool<T>,
+    incentive_v2: &mut IncentiveV2,
+    incentive_v3: &mut IncentiveV3,
+    oracle: &PriceOracle,
+    config: &ProtocolConfig,
+    clock: &Clock,
+    registry: &ProtocolRegistry,
+    asset_id: u8,
+    max_amount: u64,
+    ctx: &mut TxContext,
+) {
+    let claimable = stream_pool::claimable_amount(pool, ctx.sender(), clock);
+    let cash = stream_pool::balance_value(pool);
+    if (cash < claimable) {
+        let shortfall = claimable - cash;
+        let draw = if (shortfall < max_amount) { shortfall } else { max_amount };
+        if (draw > 0) {
+            pool_withdraw_navi<T>(
+                pool, storage, navi_pool, incentive_v2, incentive_v3,
+                oracle, config, clock, registry, asset_id, draw, ctx,
+            );
+        };
+    };
+}
+
+// Org voluntarily unwinds `amount` of the pool's Navi position back to idle cash.
+// Enables rebalancing (unwind here, then pool_invest_<other> in the same PTB) and
+// manual idle-cash top-ups. Org-gated — distinct from the package-internal
+// pool_withdraw_navi used during claims, which runs on behalf of the employee.
+public fun org_withdraw_navi<T>(
+    pool: &mut StreamPool<T>,
+    storage: &mut Storage,
+    navi_pool: &mut Pool<T>,
+    incentive_v2: &mut IncentiveV2,
+    incentive_v3: &mut IncentiveV3,
+    oracle: &PriceOracle,
+    config: &ProtocolConfig,
+    clock: &Clock,
+    registry: &ProtocolRegistry,
+    asset_id: u8,
+    amount: u64,
+    ctx: &mut TxContext,
+) {
+    assert!(stream_pool::org(pool) == ctx.sender(), ENotOrg);
+    pool_withdraw_navi<T>(
+        pool, storage, navi_pool, incentive_v2, incentive_v3,
+        oracle, config, clock, registry, asset_id, amount, ctx,
+    );
+}

@@ -169,3 +169,18 @@ public fun create_test_config(ctx: &mut TxContext): ProtocolConfig {
         treasury: ctx.sender(),
     }
 }
+
+// Builds a ProtocolRegistry pre-approved for the given protocol names, bypassing
+// AccessControl. For downstream-package tests that need an approved registry but
+// don't depend on openzeppelin_access directly.
+#[test_only]
+public fun create_test_registry_with(names: vector<String>, ctx: &mut TxContext): ProtocolRegistry {
+    let mut registry = ProtocolRegistry {
+        id: object::new(ctx),
+        protocols: vec_map::empty(),
+    };
+    names.do!(|name| {
+        vec_map::insert(&mut registry.protocols, name, ProtocolEntry { adapter_package: @0x0, yield_type: 1, enabled: true });
+    });
+    registry
+}

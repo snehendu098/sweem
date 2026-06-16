@@ -50,11 +50,14 @@ Holds the `AdminCap`, the `ProtocolRegistry` (approved yield protocols list), an
 **`claim` returns `Coin<T>`, not transfers it**
 This is what makes the entire PTB composition work. The employee gets a `Coin<T>` back from `claim`, then the PTB freely routes it — split between vault and wallet, swap to different tokens, deposit into yield protocols — all in one atomic transaction.
 
-**`pool_withdraw_*` is `public(package)` — internal use only**
-Yield withdrawal functions are not exposed externally. They are only callable from within `sweem_adapters` itself, specifically from `claim_with_liquidity`. This prevents anyone from arbitrarily pulling funds out of yield positions and stopping the org's yield generation. The only withdrawal that can happen is the exact amount needed to fund an employee's claim — nothing more. `pool_invest_*` remains org-only.
+**`pool_withdraw_*` is `public(package)` — reached only through gated wrappers**
+The raw yield-withdrawal functions are not callable directly from outside `sweem_adapters`. They are reached through two `public` wrappers, each with its own bound, so no one can arbitrarily drain the org's yield positions:
+- `cover_claim_from_<protocol>` (employee) — withdraws at most the **caller's own** claim shortfall (`claimable_amount(pool, ctx.sender()) − idle cash`); a non-employee draws nothing. Bounded by the caller's claimable, so it's safe to be public.
+- `org_withdraw_<protocol>` (org-gated, `ctx.sender() == pool.org`) — lets the org unwind a position to idle for rebalancing.
+`pool_invest_*` remains org-only.
 
-**`claim_with_liquidity` is the primary claim entry point**
-Employees call `sweem_adapters::claim_liquidity::claim_with_liquidity` rather than `sweem_core::stream_pool::claim` directly. It computes the shortfall, withdraws from yield positions (L → Y → S priority order) to cover it, then delegates to `claim`. This keeps `sweem_core` completely yield-agnostic.
+**Claim entry points**
+Employees call a `sweem_adapters` claim path, not `sweem_core::stream_pool::claim` directly: a dedicated single-protocol entry (`claim_with_liquidity` for Navi, `claim_with_liquidity_scallop` for Scallop), or — for a pool split across protocols — a PTB chaining `cover_claim_from_<protocol>` calls before a terminal `claim`. Each covers the shortfall from its protocol; the frontend chooses which protocols and in what order to draw from (no hardcoded priority). This keeps `sweem_core` completely yield-agnostic.
 
 **Dynamic min-claim prevents spam**
 `claim` enforces a minimum computed inline from the employee's own rate: `slice_per_ms * 604_800_000 / 10` (10% of their weekly income). No stored config needed — the threshold scales automatically with each employee's salary and updates whenever the org changes their `slice_per_ms`. Aborts with `EBelowMinClaimAmount` if not met.

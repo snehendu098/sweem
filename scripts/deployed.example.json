@@ -1,0 +1,16 @@
+{
+  "_comment": "Copy to scripts/deployed.json (gitignored) and paste the IDs from YOUR manual `sui client publish`. loadDeployed() errors clearly if a required id is missing/placeholder. Created object ids (pool/vault/accountCap) are written back here by --execute runs, or pasted by hand.",
+
+  "sweemRegistryPkg": "0x_FILL_registry_package_id",
+  "sweemCorePkg": "0x_FILL_core_package_id",
+  "sweemAdaptersPkg": "0x_FILL_adapters_package_id",
+
+  "accessControl": "0x_FILL_AccessControl<REGISTRY>_shared_object",
+  "protocolRegistry": "0x_FILL_ProtocolRegistry_shared_object",
+  "protocolConfig": "0x_FILL_ProtocolConfig_shared_object",
+
+  "poolId": "0x_OPTIONAL_filled_after_e2e_split_pool_create",
+  "poolAccountCap": "0x_OPTIONAL_navi_accountcap_stored_in_pool",
+  "vaultId": "0x_OPTIONAL_filled_after_e2e_vault_create",
+  "vaultAccountCap": "0x_OPTIONAL_navi_accountcap_stored_in_vault"
+}

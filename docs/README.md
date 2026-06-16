@@ -22,7 +22,8 @@ Storage is split across two layers — database for metadata, Sui contracts for 
 - While funds sit unclaimed they are invested in yield protocols chosen by the org at deposit/topup time
 - Yield accrues to the organization
 - Supported yield types: Lending Protocols (L), Yield Bearing Stablecoins (Y), LSTs (S)
-- Org can split across multiple protocols in one deposit
+- Org can split across multiple protocols (or keep some/all idle) — positions coexist on one pool
+- Claims against a split pool draw liquidity across all of them in a single PTB (`cover_claim_from_<protocol>` × N → `claim`); the org can rebalance protocol→protocol via `org_withdraw_<protocol>`
 
 **Claiming**
 - Claimable amount computed live: `(effective_end - last_claimed_at - total_paused_ms) * rate_amount / rate_period_ms`

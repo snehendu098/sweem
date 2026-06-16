@@ -67,10 +67,29 @@ public(package) fun pool_withdraw_scallop<T>(...) {
     // withdraw, calc yield fee, send to treasury
     // update position
 }
+
+// Employee-side claim helper — bounded by the CALLER'S own claimable shortfall.
+// Safe to be public; composed in a PTB with other cover_claim_from_* + a final claim.
+public fun cover_claim_from_scallop<T>(pool, ..., max_amount: u64, ctx) {
+    let claimable = stream_pool::claimable_amount(pool, ctx.sender(), clock);
+    let cash = stream_pool::balance_value(pool);
+    if (cash < claimable) {
+        let shortfall = claimable - cash;
+        let draw = if (shortfall < max_amount) { shortfall } else { max_amount };
+        if (draw > 0) { pool_withdraw_scallop<T>(..., draw, ctx); };
+    };
+}
+
+// Org-gated unwind for rebalancing protocol -> idle -> another protocol.
+public fun org_withdraw_scallop<T>(pool, ..., amount: u64, ctx) {
+    assert!(stream_pool::org(pool) == ctx.sender(), ENotOrg);
+    pool_withdraw_scallop<T>(..., amount, ctx);
+}
 ```
 
 Key rules:
-- `pool_withdraw_*` must be `public(package)` — it's called by `claim_liquidity`, not external callers
+- `pool_withdraw_*` stays `public(package)` — the package-internal primitive, never called by external callers directly
+- Expose `cover_claim_from_<X>` (`public`, employee claim) and `org_withdraw_<X>` (`public`, org-gated rebalance) as the two external entry points — see Step 4
 - Always check `is_approved` at entry
 - Always track `deposited_value` so yield fee can be calculated as `gross - principal`
 - Use block scopes `{ ... }` to release borrow before touching the same object again (Move borrow checker)
@@ -78,22 +97,23 @@ Key rules:
 
 ---
 
-## Step 4 — Update claim_liquidity
+## Step 4 — Expose two external entry points (no central module to edit)
 
-`claim_liquidity.move` currently only handles Navi as the fallback liquidity source. To support multiple protocols:
+A claim or rebalance can span any mix of protocols (L + Y + S). Because each protocol needs different typed object arguments, Move cannot express one generic "claim over N protocols" function — so the system is **PTB-composed**, not centrally dispatched. Adding a protocol therefore means adding **two `public` functions in your new module and editing nothing else**:
 
-```move
-// Simple priority fallback: try Navi first, then Scallop
-if (shortfall > 0 && dof::exists(borrow_uid(pool), NaviPoolCapKey())) {
-    pool_withdraw_navi<T>(..., shortfall, ctx);
-    shortfall = claimable - stream_pool::balance_value(pool);
-};
-if (shortfall > 0 && dof::exists(borrow_uid(pool), ScallopPoolCapKey())) {
-    pool_withdraw_scallop<T>(..., shortfall, ctx);
-};
+**1. `cover_claim_from_<X>` (employee claim).** Reads the caller's own `claimable_amount`, and if idle cash is short, pulls up to `max_amount` of the shortfall out of the protocol into `pool.balance`. It does **not** claim. The amount is bounded by the caller's own claimable, so it is safe to be `public` — non-employees and over-draws are no-ops (no grief vector). The employee's claim PTB chains one call per protocol the pool uses, then a terminal `stream_pool::claim` (which asserts overall sufficiency):
+
+```
+PTB:
+  cover_claim_from_navi(...)      // L
+  cover_claim_from_scallop(...)   // L
+  cover_claim_from_volo(...)      // S  (future)
+  stream_pool::claim(...)         // pays out from idle balance
 ```
 
-Or implement a more sophisticated routing strategy off-chain and call specific withdraw functions from a PTB.
+**2. `org_withdraw_<X>` (org rebalance).** Org-gated unwind of `amount` back to idle cash. The org composes a rebalance PTB: `org_withdraw_navi(x)` → `pool_invest_scallop(x)` atomically.
+
+This replaces the older approach of editing a shared `claim_liquidity` module. The single-protocol convenience entries (`claim_with_liquidity`, `claim_with_liquidity_scallop`) remain for pools that use exactly one protocol.
 
 ---
 
@@ -123,6 +143,8 @@ public(package) fun pool_withdraw_haedal<SUI>(pool, haedal_staking, amount, ...)
 
 | To add a protocol | Steps |
 |---|---|
-| New lending (Scallop, etc.) | Add dep → write module following Navi pattern → register in registry → update claim_liquidity |
+| New lending (Scallop, etc.) | Add dep → write module following Navi pattern → register in registry (yield_type=0) |
 | New LST | Add dep → write module with mint/redeem pattern → register as yield_type=2 |
 | New yield-bearing stablecoin | Similar to LST pattern (swap in, swap out) → yield_type=1 |
+
+Every protocol adds the same five functions in its own module — `pool_invest_<X>`, `pool_withdraw_<X>` (`public(package)`), `vault_invest_<X>`, `vault_withdraw_<X>`, plus the two external entries `cover_claim_from_<X>` and `org_withdraw_<X>`. **No edits to `stream_pool`, `employee_vault`, `registry`, or any other adapter.** Positions coexist because each adapter uses its own DF/DOF key types, so one pool or bucket can hold L + Y + S simultaneously without collision. A claim across all three is just a longer PTB chain.

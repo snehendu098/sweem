@@ -163,12 +163,17 @@ pool_invest_scallop<T>(pool, version, market, registry, clock, amount, ctx)
 pool_withdraw_scallop<T>(pool, version, market, config, registry, clock, ctx)    // public(package)
 ```
 
-`pool_withdraw_scallop` redeems the **entire** sCoin position in one call — partial redemption is not supported by Scallop's `redeem` interface. After the call, the pool has no Scallop position. The org re-invests on the next deposit/topup cycle.
+`pool_withdraw_scallop(shortfall)` performs **partial** redemption: the adapter reads the Market exchange rate, computes `scoin_to_redeem = ceil(shortfall * supply / backing) + 1` (capped at the full position), `split`s exactly that much sCoin, and redeems only it — the remainder stays invested. Scallop's `redeem` primitive itself takes whatever sCoin coin you hand it; partial is achieved by splitting before redeeming. Only when the needed sCoin meets or exceeds the whole position does it close out entirely.
 
-Yield fee formula (full-position close):
+Yield fee formula — full close uses the whole baseline; a partial close pro-rates the principal (rounding up so yield/fee is never overcounted):
 ```
-yield_earned = max(0, gross - deposited_value)
-fee          = yield_earned * org_yield_fee_bps / 10_000
+// partial:
+principal_share = ceil(deposited_value * scoin_to_redeem / total_scoin)
+// full:
+principal_share = deposited_value
+
+yield_earned    = max(0, gross - principal_share)
+fee             = yield_earned * org_yield_fee_bps / 10_000
 ```
 
 ### Vault yield flow
@@ -193,14 +198,59 @@ Same structure as `claim_with_liquidity` but calls `pool_withdraw_scallop` on sh
 
 ---
 
+## Multi-Protocol Pools (split across L / Y / S)
+
+A pool or vault bucket can hold positions in several protocols at once — each adapter stores its position under its own DF/DOF key types, so they never collide. Three claim/rebalance paths exist depending on how the pool is invested.
+
+### Single-protocol pool — dedicated entry
+
+If a pool uses only Navi, use `claim_with_liquidity`. Only Scallop → `claim_with_liquidity_scallop`. One call, smallest object set.
+
+### Split pool — composable cover primitives
+
+When a pool is split across multiple protocols, the claim is **composed in a PTB**, not handled by one mega-function (Move can't take heterogeneous protocol objects generically). Each adapter exposes:
+
+```move
+// Pulls up to max_amount of the CALLER'S OWN claim shortfall out of the protocol
+// into pool.balance. Does NOT claim. Bounded by claimable → safe to be public.
+public fun cover_claim_from_navi<T>(pool, <navi objs>, registry, config, clock, asset_id, max_amount, ctx)
+public fun cover_claim_from_scallop<T>(pool, <scallop objs>, registry, config, clock, max_amount, ctx)
+```
+
+Employee claim PTB for a Navi+Scallop pool:
+
+```
+cover_claim_from_navi(...,    max_amount = navi_share)      // top up idle cash from Navi
+cover_claim_from_scallop(..., max_amount = claimable)       // cover the rest from Scallop
+stream_pool::claim(...)                                     // pays out; asserts sufficiency
+```
+
+Each `cover_*` recomputes the remaining shortfall (`claimable - balance`), so chaining composes naturally and any single call is a no-op if cash already covers. The terminal `stream_pool::claim` is the single point that asserts the pool can pay — if the chain falls short it aborts there with `EInsufficientBalance`, atomically (nothing changes).
+
+**Why `public` is safe here:** the draw is bounded by `claimable_amount(pool, ctx.sender())`. A non-employee gets `claimable = 0` → no-op; an employee can only ever unwind toward what they are already owed. There is no way to force-unwind the org's position for grief — the bound is the gate. `pool_withdraw_*` itself stays `public(package)`.
+
+**Frontend note:** for Navi, pass `max_amount` ≤ the pool's current Navi position (`pool_withdraw_navi` withdraws exactly the requested amount). Scallop self-caps redemption to its full position, so its `max_amount` can be the full shortfall. Only include a `cover_*` call for protocols the pool actually holds a position in.
+
+### Org rebalancing
+
+```move
+public fun org_withdraw_navi<T>(pool, <navi objs>, ..., amount, ctx)      // org-gated
+public fun org_withdraw_scallop<T>(pool, <scallop objs>, ..., amount, ctx) // org-gated
+```
+
+Org-gated unwind back to idle cash. Rebalance is one PTB: `org_withdraw_navi(x)` → `pool_invest_scallop(x)`. Distinct from the in-claim `pool_withdraw_*` (which runs on behalf of the employee, so it can't be org-gated). `withdraw_excess` still only returns *uninvested* cash above the coverage floor; `org_withdraw_*` is what unwinds an actual yield position.
+
+---
+
 ## Navi vs Scallop — Key Differences
 
 | | Navi | Scallop |
 |---|---|---|
 | Setup | `store_pool_account_cap` + `store_vault_account_cap` (one-time) | None |
 | Shared objects required | `Storage, Pool<T>, IncentiveV2, IncentiveV3, PriceOracle` | `Version, Market` |
-| Withdrawal granularity | Partial — exact `amount` requested | Full position always |
-| Position after claim | Reduced proportionally | Zeroed — re-invest manually |
+| Pool withdrawal granularity | Partial — exact `amount` requested | Partial — adapter splits sCoin for the `shortfall` |
+| Pool position after partial claim | Reduced proportionally | Reduced; remainder stays invested (zeroed only on full redeem) |
+| Vault withdrawal granularity | Partial (`amount`) | Full position (no `amount` arg) |
 | Oracle required | Yes (on withdraw) | No |
 | Pool ID | `asset_id: u8` | Type param only |
 

@@ -32,3 +32,16 @@ export function computeClaimable(
   if (elapsedMs <= 0n || rateAmount <= 0n || ratePeriodMs <= 0n) return 0n
   return elapsedMs * rateAmount / ratePeriodMs
 }
+
+// Streamed amount per millisecond as a float — used for display (slice endpoint)
+// and runway estimation (balance / slicePerMs ≈ ms remaining). For EXACT accrued
+// amounts use computeClaimable, which multiplies before dividing to avoid the
+// integer precision loss that a floored per-ms slice would introduce.
+export function computeSlicePerMs(
+  rateAmount: number,
+  rateType: 'MONTHLY' | 'HOURLY',
+): number {
+  const periodMs = rateType === 'MONTHLY' ? Number(MS_PER_MONTH) : Number(MS_PER_HOUR)
+  if (periodMs <= 0 || !(rateAmount > 0)) return 0
+  return rateAmount / periodMs
+}

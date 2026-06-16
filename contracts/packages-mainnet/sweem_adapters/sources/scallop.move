@@ -279,3 +279,48 @@ public fun vault_withdraw_scallop<T>(
 
     event::emit(ScallopReturned { object_id: vault_id, gross, yield_fee: fee, net: gross - fee });
 }
+
+// Employee-side claim helper for a pool split across multiple protocols. Pulls up to
+// `max_amount` of the CALLER'S OWN claim shortfall out of Scallop into the pool's idle
+// balance, then returns (it does NOT claim). Compose in a PTB with any other
+// `cover_claim_from_*` calls and a final `stream_pool::claim`. Safe to be public: the
+// draw is bounded by the caller's own claimable, so non-employees and over-draws are
+// no-ops. Scallop self-caps redemption to the full position, so `max_amount` may be
+// the full shortfall.
+public fun cover_claim_from_scallop<T>(
+    pool: &mut StreamPool<T>,
+    version: &Version,
+    market: &mut Market,
+    config: &ProtocolConfig,
+    registry: &ProtocolRegistry,
+    clock: &Clock,
+    max_amount: u64,
+    ctx: &mut TxContext,
+) {
+    let claimable = stream_pool::claimable_amount(pool, ctx.sender(), clock);
+    let cash = stream_pool::balance_value(pool);
+    if (cash < claimable) {
+        let shortfall = claimable - cash;
+        let draw = if (shortfall < max_amount) { shortfall } else { max_amount };
+        if (draw > 0) {
+            pool_withdraw_scallop<T>(pool, version, market, config, registry, clock, draw, ctx);
+        };
+    };
+}
+
+// Org voluntarily unwinds `amount` (underlying) of the pool's Scallop position back to
+// idle cash — for rebalancing into another protocol or topping up idle cash. Org-gated.
+// Scallop redeems ceil(amount) worth of sCoin, capped at the full position.
+public fun org_withdraw_scallop<T>(
+    pool: &mut StreamPool<T>,
+    version: &Version,
+    market: &mut Market,
+    config: &ProtocolConfig,
+    registry: &ProtocolRegistry,
+    clock: &Clock,
+    amount: u64,
+    ctx: &mut TxContext,
+) {
+    assert!(stream_pool::org(pool) == ctx.sender(), ENotOrg);
+    pool_withdraw_scallop<T>(pool, version, market, config, registry, clock, amount, ctx);
+}

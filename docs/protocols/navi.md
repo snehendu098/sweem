@@ -18,6 +18,8 @@ Reference transactions (mainnet):
 | `oracle` | `0xca441b44943c16be0e6e23c5a955bb971537ea3289ae8016fbf33fffe1fd210f` |
 | `oracle_pro` (price updater) | `0x203728f46eb10d19f8f8081db849c86aa8f2a19341b7fd84d7a0e74f053f6242` |
 
+> **Package versioning:** Navi upgrades its package; the current `lending_core` package ID (where the callable `incentive_v3` entry functions live) is **`0x1e4a13a0494d5facdbe8473e74127b838c2d446ecec0ce262e2eddafa77259cb`** (verify the latest via `GET https://open-api.naviprotocol.io/api/package`). Struct types keep their original-version addresses (`Storage`/`Pool` → v1 `0xd899…81ca`, `incentive_v2::Incentive` → `0xe66f…1b65`, `incentive_v3::Incentive` → `0x81c4…c18f`). Sweem's `Move.toml` pins a `lending_core` git rev — confirm its resolved `published-at` targets the current package above before a mainnet run.
+
 ---
 
 ## Mainnet Shared Object IDs
@@ -45,33 +47,9 @@ Reference transactions (mainnet):
 
 ---
 
-## Testnet
+## No Testnet
 
-Navi has a full testnet deployment with test tokens. Testnet is the environment for integration testing Sweem's adapter before mainnet.
-
-### Testnet USDC Pool
-
-| Field | Value |
-|---|---|
-| Coin type | `0x6dbe9f683727ea558b4a13101d9fd9dbe540a0c9e06f18021d7300b5de73636f::usdc_test::USDC_TEST` |
-| Pool object | `0xd324a1fa7780de7a14b0c5af38e0c3b03d9cf1ad4b9c731be2d74138d84346b5` |
-| Asset ID | `1` (u8) |
-| Decimals | 6 |
-| Supply APY | ~2.89% |
-| Minimum deposit | 100 USDC_TEST (100,000,000 raw) — higher than mainnet |
-
-### Other Testnet Pools Available
-
-| Symbol | Asset ID | Coin type |
-|---|---|---|
-| SUI_TEST | 0 | `0x4c5296cbd5d0a8f6e78e84817f0b277ffdf27b7c4ef2af5a5cec85419a637291::sui_test::SUI_TEST` |
-| USDC_TEST | 1 | `0x6dbe9f683727ea558b4a13101d9fd9dbe540a0c9e06f18021d7300b5de73636f::usdc_test::USDC_TEST` |
-| BTC_TEST | 2 | `0xc9690f358882c6e5b109acf4171bce4414b1cfd5bb3f305e2150b4e802c4ea52::btc_test::BTC_TEST` |
-
-### Testnet Global Object IDs
-
-Testnet Storage, IncentiveV2, IncentiveV3, PriceOracle IDs are different from mainnet.
-- [ ] To be confirmed from a testnet deposit transaction
+**Navi has no usable testnet deployment.** The real lending market lives only on mainnet, so the real Navi route cannot be exercised on testnet — Sweem's testnet package uses the **stub** adapter (DF tracking + events, no fund movement). Integration-testing the real Navi route requires **mainnet with dust** (minimum 5 USDC per the pool's `minimumAmount`). Unit tests (`sui move test`) can only cover Sweem's own logic against the stubs, never the live market.
 
 ---
 
@@ -81,7 +59,7 @@ Navi's entry functions record positions under `ctx.sender()`. For Sweem, `ctx.se
 
 `AccountCap` is an owned object acting as a standalone account inside Navi. Positions are tracked under the AccountCap's owner address — not `ctx.sender()`. Anyone holding the cap can access those positions.
 
-**For Sweem:** the AccountCap is created once per StreamPool via `pool_setup_navi` and stored as a dynamic object field on the StreamPool under key `"navi_account_cap"`. `sweem_adapters` manages it entirely — `sweem_core` never knows it exists.
+**For Sweem:** the AccountCap is created externally via Navi's `lending_core::lending::create_account(ctx): AccountCap`, then handed to the adapter once per StreamPool via `store_pool_account_cap` (and once per vault bucket via `store_vault_account_cap`). It is stored as a dynamic object field under the `NaviPoolCapKey` / `NaviVaultCapKey` key structs. `sweem_adapters` manages it entirely — `sweem_core` never knows it exists. There is no `pool_setup_navi` function; creation happens in the PTB, storage happens in `store_*_account_cap`.
 
 ---
 
@@ -107,8 +85,8 @@ No return value. Position tracked internally in Storage under AccountCap's owner
 ### Withdraw
 
 ```rust
-// package: incentive_v3
-public fun withdraw_with_account_cap_v2<CoinType>(
+// package: incentive_v3 — the adapter uses this (NOT the _v2 variant)
+public fun withdraw_with_account_cap<CoinType>(
     clock:        &Clock,
     oracle:       &PriceOracle,
     storage:      &mut Storage,
@@ -118,30 +96,30 @@ public fun withdraw_with_account_cap_v2<CoinType>(
     incentive_v2: &mut IncentiveV2,
     incentive_v3: &mut Incentive,
     account_cap:  &AccountCap,
-    system_state: &mut SuiSystemState,
-    ctx:          &mut TxContext,
 ): Balance<CoinType>
 ```
-Returns `Balance<CoinType>` — merged directly into `pool.balance` or `bucket.balance`.
+Returns `Balance<CoinType>` — merged directly into `pool.balance` or `bucket.balance`. **No `SuiSystemState` and no separate oracle price-update call are required** by the adapter's withdraw path (the `0x5`/`oracle_pro` references below are not used by current code). Partial withdrawal is supported — pass the exact `amount` needed.
 
 ---
 
 ## PTB Structure
 
-### Deposit PTB (org)
+The adapter wraps the Navi calls — callers invoke the Sweem adapter functions below, not Navi directly. The internal Navi calls are:
+
+### Deposit (inside `pool_invest_navi` / `vault_invest_navi`)
 
 ```
-1. oracle_pro::update_single_price_v2(...)        ← always first, freshens oracle price
-2. incentive_v3::deposit_with_account_cap<T>(...)
+incentive_v3::deposit_with_account_cap<T>(...)   ← no oracle price-update call needed
 ```
 
-### Withdrawal PTB (internal — called from claim_with_liquidity only)
+### Withdrawal (inside `pool_withdraw_navi`, reached via the claim/cover entry points)
 
 ```
-1. oracle_pro::update_single_price_v2(...)        ← always first
-2. incentive_v3::withdraw_with_account_cap_v2<T>(...) → Balance<T>
-3. merge Balance<T> into pool.balance
+1. incentive_v3::withdraw_with_account_cap<T>(...) → Balance<T>
+2. deduct yield fee → treasury; merge net into pool.balance
 ```
+
+No `oracle_pro::update_single_price_v2` and no `SuiSystemState` are used by current code.
 
 ---
 
@@ -161,74 +139,94 @@ NaviPosition: has store
   deposited_value: u64   ← original raw tokens deposited (for yield fee calculation)
 ```
 
-Yield fee calculation at withdrawal:
+Yield fee calculation at withdrawal (matches source — Navi accrues yield to position size, aToken-style, so `principal_share` is `min(amount, deposited_value)`, not a proportional split):
 ```
-proportional_deposit = deposited_value * withdrawn / total_position_value
-yield                = withdrawn - proportional_deposit
-fee                  = yield * fee_bps / 10_000
-net_to_pool          = withdrawn - fee
+gross           = withdrawn amount returned by Navi
+principal_share = min(amount, deposited_value)
+yield           = max(0, gross - principal_share)
+fee             = yield * fee_bps / 10_000   (OZ u64 mul_div, rounds down)
+net_to_pool     = gross - fee
+deposited_value = deposited_value - principal_share   (reduced after withdraw)
 ```
+Because Navi accrues yield into the position rather than as surplus on withdrawal, `yield` is ≈0 on partial withdrawals; the fee is realized primarily on a full exit.
 
 ---
 
 ## Sweem Adapter Functions
 
-### `pool_setup_navi<T>` — public, org calls once after pool creation
-Creates AccountCap via Navi, stores as DOF on StreamPool under `"navi_account_cap"`.
+> Argument order below matches the source in `sweem_adapters/sources/navi.move`. There is no `pool_setup_navi`; the AccountCap is created via `lending_core::lending::create_account` in the PTB and registered with `store_pool_account_cap` / `store_vault_account_cap`.
+
+### `store_pool_account_cap<T>` / `store_vault_account_cap` — one-time setup
+```
+public fun store_pool_account_cap<T>(pool: &mut StreamPool<T>, cap: AccountCap, ctx: &TxContext)   // org-only
+public fun store_vault_account_cap(vault: &mut EmployeeVault, cap: AccountCap, ctx: &TxContext)     // owner-only
+```
+Stores the cap as a DOF under `NaviPoolCapKey` / `NaviVaultCapKey`.
 
 ### `pool_invest_navi<T>` — public, org-only
 ```
 public fun pool_invest_navi<T>(
     pool:         &mut StreamPool<T>,
-    registry:     &ProtocolRegistry,
     storage:      &mut Storage,
     navi_pool:    &mut Pool<T>,
     incentive_v2: &mut IncentiveV2,
     incentive_v3: &mut Incentive,
-    amount:       u64,
+    registry:     &ProtocolRegistry,
     clock:        &Clock,
+    asset_id:     u8,
+    amount:       u64,
     ctx:          &mut TxContext,
 )
 ```
-- Assert `registry::is_approved(registry, "navi")`
-- Assert `ctx.sender() == pool.org`
-- Assert `amount >= 5_000_000` (mainnet minimum)
-- Borrow AccountCap DOF from pool
-- Call `deposit_with_account_cap`
-- Upsert `NaviPosition` DOF: add `amount` to `deposited_value`
+- Assert `is_approved(registry, "navi")`, `ctx.sender() == pool.org`, AccountCap present
+- `split_balance_for_invest` (enforces coverage floor) → `deposit_with_account_cap`
+- Upsert `NaviPosition.deposited_value += amount`
+- (No on-chain minimum-deposit assert; respect Navi's own minimums off-chain.)
 
-### `pool_withdraw_navi<T>` — public(package), called only from claim_with_liquidity
+### `pool_withdraw_navi<T>` — `public(package)`, the internal withdraw primitive
 ```
 public(package) fun pool_withdraw_navi<T>(
     pool:         &mut StreamPool<T>,
-    registry:     &ProtocolRegistry,
-    config:       &ProtocolConfig,
     storage:      &mut Storage,
     navi_pool:    &mut Pool<T>,
-    oracle:       &PriceOracle,
     incentive_v2: &mut IncentiveV2,
     incentive_v3: &mut Incentive,
-    system_state: &mut SuiSystemState,
-    amount:       u64,
+    oracle:       &PriceOracle,
+    config:       &ProtocolConfig,
     clock:        &Clock,
+    registry:     &ProtocolRegistry,
+    asset_id:     u8,
+    amount:       u64,
     ctx:          &mut TxContext,
 )
 ```
-- Assert `registry::is_approved(registry, "navi")`
-- No external auth — visibility enforced by `public(package)`
-- Borrow AccountCap DOF from pool
-- Call `withdraw_with_account_cap_v2` → `Balance<T>`
-- Deduct yield fee → send to `config.treasury`
-- Merge net into `pool.balance`
-- Reduce `NaviPosition.deposited_value` proportionally
+- Assert `is_approved`, AccountCap present; no sender auth — reached only via the package-internal callers below
+- `withdraw_with_account_cap` → `Balance<T>`; deduct yield fee → `config.treasury`; merge net into `pool.balance`; reduce `NaviPosition.deposited_value`
+
+### `cover_claim_from_navi<T>` — public, employee claim helper (split pools)
+```
+public fun cover_claim_from_navi<T>(
+    pool, storage, navi_pool, incentive_v2, incentive_v3, oracle,
+    config, clock, registry, asset_id, max_amount: u64, ctx,
+)
+```
+Pulls up to `max_amount` of the **caller's own** claim shortfall (`claimable_amount(pool, ctx.sender()) − idle cash`) out of Navi into `pool.balance`. Does **not** claim. Compose in a PTB with other `cover_claim_from_*` calls and a terminal `stream_pool::claim`. Safe to be public: bounded by the caller's own claimable. Pass `max_amount` ≤ the current Navi position (over-asking aborts the claim rather than falling through to another protocol).
+
+### `org_withdraw_navi<T>` — public, org-gated rebalance
+```
+public fun org_withdraw_navi<T>(
+    pool, storage, navi_pool, incentive_v2, incentive_v3, oracle,
+    config, clock, registry, asset_id, amount: u64, ctx,
+)
+```
+Asserts `ctx.sender() == pool.org`, then unwinds `amount` from Navi to idle cash — for rebalancing (`org_withdraw_navi` → `pool_invest_<other>` in one PTB) or top-ups.
 
 ### `vault_invest_navi<T>` / `vault_withdraw_navi<T>` — public, employee-only
-Same pattern scoped to `TokenBucket`. Auth: `vault.owner == ctx.sender()`. Fee: `vault_yield_fee_bps`.
+Same pattern scoped to a `TokenBucket`. Auth: `vault.owner == ctx.sender()`. Fee: `vault_yield_fee_bps`. `vault_withdraw_navi` takes an `amount` (partial supported).
 
 ---
 
 ## Open Questions
 
-- [ ] Exact Move path for `create_account_cap` (needed for `pool_setup_navi`)
-- [ ] Confirm `deposit_with_account_cap` module path (incentive_v3 or base storage module)
-- [ ] Testnet global object IDs (Storage, IncentiveV2, IncentiveV3, PriceOracle) — get from a testnet tx
+- [x] Mainnet shared-object IDs + `asset_id=10` verified on-chain (and via Navi `/api/navi/pools`); USDC min deposit = 5 USDC
+- [ ] Confirm Sweem's pinned `lending_core` git rev resolves `published-at` to the current package `0x1e4a13a0…77259cb` (else calls hit an outdated package version)

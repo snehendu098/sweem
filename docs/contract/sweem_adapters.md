@@ -85,36 +85,28 @@ Each module will be fully specified in `docs/protocols/<protocol>.md` before imp
 
 ## Module: `claim_liquidity`
 
-### `claim_with_liquidity<T>`
+### Claim entry points
 
+Because each protocol needs different statically-typed object arguments, there is **no single generic `claim_with_liquidity` that loops over all protocols** — Move can't take a heterogeneous list of protocol objects. The claim is instead either a dedicated single-protocol entry or a PTB-composed chain of per-protocol helpers.
+
+**Single-protocol pool** — one dedicated entry per protocol (smallest object set):
 ```
-public fun claim_with_liquidity<T>(
-    pool:                  &mut StreamPool<T>,
-    registry:              &ProtocolRegistry,
-    config:                &ProtocolConfig,
-    clock:                 &Clock,
-    /* protocol-specific objects, one per invested protocol */
-    ctx:                   &mut TxContext,
-): Coin<T>
+claim_with_liquidity<T>(pool, storage, navi_pool, incentive_v2, incentive_v3, oracle, registry, config, clock, asset_id, ctx): Coin<T>   // Navi-only
+claim_with_liquidity_scallop<T>(pool, version, market, registry, config, clock, ctx): Coin<T>                                            // Scallop-only
 ```
+Each computes `claimable`, and if `pool.balance < claimable` withdraws the shortfall from its one protocol via `pool_withdraw_<protocol>`, asserts coverage, then delegates to `sweem_core::stream_pool::claim`.
 
-The primary entry point for employee claims. Ensures `pool.balance` covers the claimable amount by withdrawing from yield positions as needed, then delegates to `sweem_core::stream_pool::claim`.
-
-**Algo:**
-1. Compute `claimable = sweem_core::stream_pool::claimable_amount(pool, ctx.sender(), clock)`
-2. If `pool.balance >= claimable` → skip to step 4
-3. Compute `shortfall = claimable - pool.balance`. For each yield position on the pool (in order: L → Y → S):
-   - Withdraw `min(position_value, remaining_shortfall)` via the corresponding `pool_withdraw_<protocol>` function
-   - Subtract withdrawn amount from `remaining_shortfall`
-   - Stop when `remaining_shortfall == 0`
-4. Assert `pool.balance >= claimable` — aborts with `EInsufficientPoolLiquidity` if yield positions couldn't cover shortfall
-5. Call `sweem_core::stream_pool::claim(pool, clock, ctx)` → return `Coin<T>`
-
-Withdrawal order (L → Y → S) favors liquid positions (lending) over less-liquid ones (LSTs), minimising slippage.
+**Split pool (multiple protocols)** — compose in one PTB. Each `cover_claim_from_<X>` tops up `pool.balance` from its protocol (bounded by the caller's own claim shortfall), then a terminal `stream_pool::claim` pays out and asserts coverage:
+```
+cover_claim_from_navi(...,    max_amount = navi_share)
+cover_claim_from_scallop(..., max_amount = claimable)
+stream_pool::claim(...)
+```
+The frontend chooses the source split and order (there is **no hardcoded L→Y→S priority** in the contract); each `cover_*` recomputes the remaining shortfall so the chain composes naturally. See `docs/implemented/sweem_adapters.md` → "Multi-Protocol Pools" for the full description and the `org_withdraw_<X>` rebalance path.
 
 **Errors:**
 ```
-EInsufficientPoolLiquidity: 400  ← total balance + all yield positions < claimable
+EInsufficientPoolLiquidity  ← idle cash + withdrawn yield still < claimable (asserted in the single-protocol entries / by stream_pool::claim's EInsufficientBalance for the composed path)
 ```
 
 ---

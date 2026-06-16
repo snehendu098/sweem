@@ -1,0 +1,19 @@
+{
+  "name": "sweem-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Bun + TypeScript runtime FLOW TESTS against already-deployed Sweem contracts. NO deploy/publish logic — the maintainer publishes manually and fills deployed.json.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "admin-setup": "bun run src/admin-setup.ts",
+    "e2e:split-pool": "bun run src/e2e-split-pool.ts",
+    "e2e:vault": "bun run src/e2e-vault.ts"
+  },
+  "dependencies": {
+    "@mysten/sui": "^2.17.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.6.0"
+  }
+}

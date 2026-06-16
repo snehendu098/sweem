@@ -13,8 +13,8 @@
     },
     "mainnet": {
       "name": "sweem-server-mainnet",
-      "vars": { "SUI_NETWORK": "mainnet" },
-      "hyperdrive": [{ "binding": "DB", "id": "REPLACE_MAINNET_HYPERDRIVE_ID" }]
+      "vars": { "SUI_NETWORK": "mainnet", "ALLOWED_ORIGIN": "http://localhost:3000" },
+      "hyperdrive": [{ "binding": "DB", "id": "c4faee31e1fc45eea7ea121ff56b7313" }]
     }
   }
 }

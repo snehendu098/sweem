@@ -2,6 +2,7 @@ module sweem_adapters::scallop;
 
 use sui::dynamic_field as df;
 use sui::event;
+use sui::clock::Clock;
 use sweem_core::stream_pool::{Self, StreamPool, borrow_uid_mut, borrow_uid};
 use sweem_core::employee_vault::{Self as employee_vault, EmployeeVault, borrow_bucket_mut, vault_uid_mut, bucket_uid_mut};
 use sweem_registry::registry::{ProtocolRegistry, ProtocolConfig, is_approved};
@@ -91,4 +92,38 @@ public fun vault_withdraw_scallop<T>(
 
     let oid = vault_uid_mut(vault).to_inner();
     event::emit(ScallopWithdrawn { object_id: oid, gross: amount, fee: 0, net: amount });
+}
+
+// Stub mirror of mainnet `cover_claim_from_scallop` — same API shape for the frontend.
+// Stubs don't move real funds, so this is a bounded no-op that emits the withdraw event.
+// Compose with a final `stream_pool::claim`.
+public fun cover_claim_from_scallop<T>(
+    pool: &mut StreamPool<T>,
+    registry: &ProtocolRegistry,
+    config: &ProtocolConfig,
+    clock: &Clock,
+    max_amount: u64,
+    ctx: &mut TxContext,
+) {
+    let claimable = stream_pool::claimable_amount(pool, ctx.sender(), clock);
+    let cash = stream_pool::balance_value(pool);
+    if (cash < claimable) {
+        let shortfall = claimable - cash;
+        let draw = if (shortfall < max_amount) { shortfall } else { max_amount };
+        if (draw > 0) {
+            pool_withdraw_scallop<T>(pool, registry, config, draw, ctx);
+        };
+    };
+}
+
+// Stub mirror of mainnet `org_withdraw_scallop` — org-gated unwind for rebalancing.
+public fun org_withdraw_scallop<T>(
+    pool: &mut StreamPool<T>,
+    registry: &ProtocolRegistry,
+    config: &ProtocolConfig,
+    amount: u64,
+    ctx: &mut TxContext,
+) {
+    assert!(stream_pool::org(pool) == ctx.sender(), 1);
+    pool_withdraw_scallop<T>(pool, registry, config, amount, ctx);
 }

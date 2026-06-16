@@ -12,7 +12,8 @@ Scallop is **sender-based**. No `AccountCap` is required. Deposits return a rece
 |---|---|---|
 | Auth | `AccountCap` (DOF on pool/vault) | None — sender-based |
 | Deposit result | Internal accounting in `Storage` | Returns `Coin<MarketCoin<T>>` (sCoin) |
-| Withdrawal input | `amount: u64` (partial supported) | Full sCoin (full-position close) |
+| Pool withdrawal | partial (`amount`) | **partial** — adapter splits the stored sCoin to redeem only what's needed |
+| Vault withdrawal | partial (`amount`) | full position (no `amount` arg) |
 | Pool ID | `asset_id: u8` | Type parameter only |
 | Oracle required | Yes (`PriceOracle` on withdraw) | No |
 
@@ -40,14 +41,9 @@ The MVR name `lending@scallop/core` resolves to this package but has no git URL 
 | Market | `protocol::market::Market` | `0xa757975255146dc9686aa823b7838b507f315d704f428cbadad2f4ea061939d9` |
 | Coin Decimals Registry | `CoinDecimalsRegistry` | `0x200abe9bf19751cc566ae35aa58e2b7e4ff688fc1130f8d8909ea09bc137d668` |
 
-## Testnet Shared Object IDs
+## No Testnet
 
-Scallop has a live testnet deployment — use real Scallop objects for integration testing instead of the stub adapter.
-
-| Object | Type | ID |
-|---|---|---|
-| Version | `protocol::version::Version` | `0xee15d07800e2ad4852505c57cd86afea774af02c17388f8bd907de75f915b4f4` |
-| Market | `protocol::market::Market` | `0xa7f41efe3b551c20ad6d6cea6ccd0fd68d2e2eaaacdca5e62d956209f6a51312` |
+**Scallop has no usable testnet deployment for this purpose.** Like Navi, the real money market is mainnet-only, so Sweem's testnet package uses the **stub** Scallop adapter (no fund movement). The real Scallop route can only be integration-tested on **mainnet with dust**; unit tests cover Sweem's own logic against the stub.
 
 ---
 
@@ -81,7 +77,7 @@ public fun redeem<T>(
 ): Coin<T>
 ```
 
-Burns the sCoin and returns underlying `Coin<T>` at the current exchange rate. The returned amount will be greater than the original deposit by the accrued interest. No partial redemption — the full sCoin balance must be passed in one call.
+Burns whatever sCoin `Coin<MarketCoin<T>>` you pass and returns the underlying `Coin<T>` at the current exchange rate. Scallop's primitive redeems exactly the coin handed to it — so Sweem achieves **partial** withdrawal by `split`-ing the stored sCoin first and redeeming only that fraction, leaving the remainder invested. (The raw primitive has no "redeem N of M" arg; the split happens in the adapter.)
 
 ### Key Types
 
@@ -108,7 +104,7 @@ Pool UID / Bucket UID:
   ScallopPoolPositionKey    → DF  → ScallopPosition { deposited_value: u64 }
 ```
 
-Because the sCoin exchange rate model means the **sCoin amount is static** (it never increases while sitting in the DOF), Sweem never needs to update the stored `Coin<MarketCoin<T>>` between invest and redeem calls. Multiple `pool_invest_scallop` calls accumulate via `Coin::join` into the single stored sCoin. The yield silently accrues inside the Market as a rising exchange rate.
+Because the sCoin exchange rate model means the **sCoin amount is static** (it never increases while sitting in the DOF), the value of the position grows purely via the rising exchange rate. Multiple `pool_invest_scallop` calls accumulate via `Coin::join` into the single stored sCoin. On a partial withdraw the adapter `split`s the exact sCoin fraction needed and leaves the rest in the DOF; on a full withdraw it removes the whole sCoin. The yield silently accrues inside the Market as a rising exchange rate.
 
 `deposited_value` tracks the total original USDC (or whichever token T) deposited across all invest calls. At redemption, `gross - deposited_value` is the yield earned. This is correct precisely because sCoin is not rebasing — the amount deposited is a stable baseline to compare against.
 
@@ -116,21 +112,29 @@ Because the sCoin exchange rate model means the **sCoin amount is static** (it n
 
 ## Yield Fee Calculation
 
-Because sCoin is exchange-rate-based (not rebasing), yield is simply the difference between what came back from `redeem` and what was originally deposited:
+Yield is `gross - principal_share`, where `principal_share` is the portion of `deposited_value` attributable to the sCoin actually redeemed.
 
+**Full redemption** (vault withdraws; pool withdraws where the needed sCoin ≥ the whole position):
 ```
-gross          = redeem(market_coin).value()   // e.g. 105 USDC
-deposited_value = 100 USDC                     // tracked at invest time
-yield_earned   = max(0, gross - deposited_value)  // = 5 USDC
-fee            = yield_earned * fee_bps / 10_000  (OZ mul_div, rounds down)
-net_to_pool    = gross - fee
+gross           = redeem(market_coin).value()   // e.g. 105 USDC
+principal_share = deposited_value               // whole baseline, e.g. 100 USDC
+yield_earned    = max(0, gross - principal_share)  // = 5 USDC
+fee             = yield_earned * fee_bps / 10_000  (OZ mul_div, rounds down)
+net             = gross - fee
 ```
 
-`fee` is transferred to `treasury(config)`. `net_to_pool` is merged back into `pool.balance` (or `bucket.balance` for vaults).
+**Partial pool redemption** (`pool_withdraw_scallop` with a `shortfall` smaller than the position): the adapter splits `scoin_to_redeem = ceil(shortfall * supply / backing) + 1` from the stored sCoin and pro-rates the principal:
+```
+principal_share = ceil(deposited_value * scoin_to_redeem / total_scoin)   // rounds UP
+yield_earned    = max(0, gross - principal_share)
+fee             = yield_earned * fee_bps / 10_000
+deposited_value = deposited_value - principal_share   // position kept, baseline reduced
+```
+Rounding `principal_share` up means yield (and therefore the fee) is never overcounted on a partial close.
 
-**Why this formula works:** the sCoin amount never changed between invest and redeem — only the exchange rate did. So `deposited_value` (original USDC in) is a clean baseline. No proportional scaling is needed unlike Navi's partial-withdrawal formula.
+`fee` is transferred to `treasury(config)`. `net` is merged back into `pool.balance` (or `bucket.balance` for vaults).
 
-Withdrawals are always full-position closes. After `pool_withdraw_scallop`, the pool has zero Scallop position and the org re-invests on the next deposit/topup cycle.
+After a **partial** `pool_withdraw_scallop` the remainder stays invested; only a full redeem zeroes the position (then the org re-invests on the next deposit/topup cycle). `vault_withdraw_scallop` always closes the full bucket position.
 
 ---
 
@@ -160,33 +164,48 @@ public fun pool_invest_scallop<T>(
 
 No setup step required — no AccountCap to create or store.
 
-### `pool_withdraw_scallop<T>` — `public(package)`, called only from `claim_liquidity_scallop`
+### `pool_withdraw_scallop<T>` — `public(package)`, the internal withdraw primitive
 
 ```move
 public(package) fun pool_withdraw_scallop<T>(
-    pool:     &mut StreamPool<T>,
-    version:  &Version,
-    market:   &mut Market,
-    config:   &ProtocolConfig,
-    registry: &ProtocolRegistry,
-    clock:    &Clock,
-    ctx:      &mut TxContext,
+    pool:      &mut StreamPool<T>,
+    version:   &Version,
+    market:    &mut Market,
+    config:    &ProtocolConfig,
+    registry:  &ProtocolRegistry,
+    clock:     &Clock,
+    shortfall: u64,
+    ctx:       &mut TxContext,
 )
 ```
 
-- Assert approved
-- `dof::remove` sCoin from pool UID
-- `redeem(version, market, market_coin, clock, ctx)` → `Coin<T>`
-- Compute yield fee, transfer to treasury
-- `merge_balance_from_yield(pool, net)`
-- `df::remove` `ScallopPosition` from pool UID
+- Assert approved, sCoin position exists
+- Read the Market exchange rate; compute `scoin_to_redeem = ceil(shortfall * supply / backing) + 1`, capped at the full stored sCoin
+- If it covers the whole position → `dof::remove` the sCoin and `df::remove` the `ScallopPosition`; otherwise `split` only `scoin_to_redeem` and keep the rest, reducing `deposited_value`
+- `redeem(...)` → `Coin<T>`; compute yield fee (full or pro-rated), transfer to treasury; `merge_balance_from_yield(pool, net)`
 - Emit `ScallopReturned`
 
-Redeems the **entire** position. After this call, the pool has no Scallop position — the org re-invests on the next deposit/topup cycle.
+**Partial redemption** — only the sCoin needed for `shortfall` is redeemed; the remainder stays invested. Reached via `claim_with_liquidity_scallop`, `cover_claim_from_scallop`, and `org_withdraw_scallop`.
+
+### `cover_claim_from_scallop<T>` — public, employee claim helper (split pools)
+```move
+public fun cover_claim_from_scallop<T>(
+    pool, version, market, config, registry, clock, max_amount: u64, ctx,
+)
+```
+Pulls up to `max_amount` of the **caller's own** claim shortfall (`claimable_amount(pool, ctx.sender()) − idle cash`) out of Scallop into `pool.balance`; does **not** claim. Compose in a PTB with other `cover_claim_from_*` calls and a terminal `stream_pool::claim`. Safe to be public — bounded by the caller's own claimable. Scallop self-caps redemption to the position, so `max_amount` may be the full shortfall.
+
+### `org_withdraw_scallop<T>` — public, org-gated rebalance
+```move
+public fun org_withdraw_scallop<T>(
+    pool, version, market, config, registry, clock, amount: u64, ctx,
+)
+```
+Asserts `ctx.sender() == pool.org`, then unwinds `amount` (underlying) from Scallop to idle cash — for rebalancing or top-ups.
 
 ### `vault_invest_scallop<T>` / `vault_withdraw_scallop<T>` — public, employee-only
 
-Same pattern as pool functions, scoped to a `TokenBucket` inside the employee's `EmployeeVault`. Auth: `vault.owner == ctx.sender()`. Fee rate: `vault_yield_fee_bps`.
+Scoped to a `TokenBucket` inside the employee's `EmployeeVault`. Auth: `vault.owner == ctx.sender()`. Fee rate: `vault_yield_fee_bps`. Note `vault_withdraw_scallop` takes **no** `amount` — it always closes the full bucket position.
 
 ---
 
@@ -206,11 +225,13 @@ public fun claim_with_liquidity_scallop<T>(
 ```
 
 1. Compute `claimable = stream_pool::claimable_amount(pool, sender, clock)`
-2. If `pool.balance < claimable`: call `pool_withdraw_scallop` (redeems full Scallop position into cash)
+2. If `pool.balance < claimable`: call `pool_withdraw_scallop(shortfall)` — redeems only the sCoin needed for the shortfall; the rest stays invested
 3. Assert `pool.balance >= claimable` — aborts with `EInsufficientPoolLiquidity` if still short
 4. Call `stream_pool::claim` — returns `Coin<T>` to employee
 
 The happy path (pool has enough cash) costs nothing extra — Scallop redemption only triggers when cash runs short.
+
+For a pool **split across Scallop and another protocol**, use the composable path instead of this single-protocol entry: chain `cover_claim_from_scallop` + `cover_claim_from_<other>` + `stream_pool::claim` in one PTB (see `docs/implemented/sweem_adapters.md` → "Multi-Protocol Pools").
 
 ---
 
@@ -255,6 +276,5 @@ registry::add_protocol(
 
 ## Open Questions
 
-- [ ] Confirm `Version` and `Market` shared object IDs from a live mainnet transaction
+- [ ] Re-verify the `Version` and `Market` shared-object IDs above with `sui client object <id>` before any mainnet run
 - [ ] Confirm Scallop whitelist policy — `mint`/`redeem` call `market::assert_whitelist_access(market, ctx)`. Verify this is open to all callers on mainnet
-- [ ] Scallop testnet deployment — check if a testnet version exists for integration testing (otherwise use the stub adapter)
