@@ -37,7 +37,7 @@ export const WEEK_MS = 604_800_000
 export const MONTH_MS = 2_592_000_000 // 30 days — the stream rate period we use
 
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? 'https://sweem-server-mainnet.silonelabs.workers.dev'
+  process.env.NEXT_PUBLIC_API_BASE || 'https://sweem-server-mainnet.silonelabs.workers.dev'
 
 export const EXPLORER_TX = (digest: string) => `https://suiscan.xyz/mainnet/tx/${digest}`
 export const EXPLORER_OBJ = (id: string) => `https://suiscan.xyz/mainnet/object/${id}`
