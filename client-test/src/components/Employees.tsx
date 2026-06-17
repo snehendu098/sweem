@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useCurrentAccount } from "@mysten/dapp-kit";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useSweemApi, type Employee, type Group } from "@/lib/api";
+import { useStreamedAddresses } from "@/lib/useStreamStatus";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +62,16 @@ const Employees = () => {
   const org = api.orgQuery.data;
   const groups = api.groupsQuery.data ?? [];
   const employees = api.employeesQuery.data ?? [];
+
+  // On-chain streaming status per employee (shared cache w/ Org via query keys).
+  const poolsQuery = useQuery({
+    queryKey: ["pools", wallet],
+    queryFn: () => api.listPools(wallet!),
+    enabled: !!wallet && !!org,
+    refetchInterval: 8000,
+  });
+  const onChainPoolId = poolsQuery.data?.find((p) => p.token === "USDC")?.onChainPoolId;
+  const { streamed } = useStreamedAddresses(onChainPoolId);
 
   const groupName = useMemo(() => {
     const m = new Map<string, string>();
@@ -188,6 +199,7 @@ const Employees = () => {
                       <TableHead>Wallet</TableHead>
                       <TableHead className="text-right">Monthly USDC</TableHead>
                       <TableHead>Group</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -198,6 +210,8 @@ const Employees = () => {
                         groupLabel={
                           e.groupId ? groupName.get(e.groupId) ?? null : null
                         }
+                        hasPool={!!onChainPoolId}
+                        streaming={streamed.has(e.walletAddress)}
                       />
                     ))}
                   </TableBody>
@@ -214,9 +228,13 @@ const Employees = () => {
 const SingleEmployee = ({
   employee,
   groupLabel,
+  hasPool,
+  streaming,
 }: {
   employee: Employee;
   groupLabel: string | null;
+  hasPool: boolean;
+  streaming: boolean;
 }) => {
   return (
     <TableRow>
@@ -232,6 +250,17 @@ const SingleEmployee = ({
           <Badge variant="outline">{groupLabel}</Badge>
         ) : (
           <span className="text-muted-foreground">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {monthlyRate(employee) <= 0 ? (
+          <span className="text-muted-foreground">No rate</span>
+        ) : !hasPool ? (
+          <span className="text-muted-foreground">—</span>
+        ) : streaming ? (
+          <Badge>Streaming</Badge>
+        ) : (
+          <Badge variant="secondary">Pending</Badge>
         )}
       </TableCell>
     </TableRow>

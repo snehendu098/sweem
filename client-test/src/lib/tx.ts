@@ -71,6 +71,61 @@ export function depositTx(
   return tx
 }
 
+// stream_pool::topup<USDC>(pool, config, payment) — fund only, no stream changes.
+// Adds liquid idle to the pool (raises the buffer so new streams can be covered).
+export function topupTx(poolId: string, amountRaw: bigint): Transaction {
+  const tx = new Transaction()
+  const pay = coinWithBalance({ type: USDC, balance: amountRaw })
+  tx.moveCall({
+    target: `${CORE}::stream_pool::topup`,
+    typeArguments: [USDC],
+    arguments: [tx.object(poolId), tx.object(PROTOCOL_CONFIG), pay],
+  })
+  return tx
+}
+
+// navi::org_withdraw_navi<USDC>(...) — org-gated unwind of invested principal back to idle.
+export function orgWithdrawNaviTx(poolId: string, amountRaw: bigint): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${ADAPTERS}::navi::org_withdraw_navi`,
+    typeArguments: [USDC],
+    arguments: [
+      tx.object(poolId),
+      tx.object(NAVI_STORAGE),
+      tx.object(NAVI_POOL_USDC),
+      tx.object(NAVI_INCENTIVE_V2),
+      tx.object(NAVI_INCENTIVE_V3),
+      tx.object(NAVI_PRICE_ORACLE),
+      tx.object(PROTOCOL_CONFIG),
+      tx.object(CLOCK),
+      tx.object(PROTOCOL_REGISTRY),
+      tx.pure.u8(NAVI_ASSET_ID),
+      tx.pure.u64(amountRaw),
+    ],
+  })
+  return tx
+}
+
+// scallop::org_withdraw_scallop<USDC>(pool, version, market, config, registry, clock, amount)
+export function orgWithdrawScallopTx(poolId: string, amountRaw: bigint): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${ADAPTERS}::scallop::org_withdraw_scallop`,
+    typeArguments: [USDC],
+    arguments: [
+      tx.object(poolId),
+      tx.object(SCALLOP_VERSION),
+      tx.object(SCALLOP_MARKET),
+      tx.object(PROTOCOL_CONFIG),
+      tx.object(PROTOCOL_REGISTRY),
+      tx.object(CLOCK),
+      tx.pure.u64(amountRaw),
+    ],
+  })
+  return tx
+}
+
 // stream_pool::claim_and_keep<USDC>(pool, clock) — entry; transfers claimed Coin to the caller.
 export function claimTx(poolId: string): Transaction {
   const tx = new Transaction()
@@ -329,6 +384,35 @@ export async function readStream(
     paused: optSet(v.paused_at),
     stopped: optSet(v.stopped_at),
   }
+}
+
+// Set of employee addresses that already have an on-chain Stream in the pool.
+// One pool read (to get the streams Table id) + DF pagination — independent of
+// employee count. Used to tell "streaming" employees from ones only added to the
+// backend (no stream yet). Returns an empty set if the pool/table can't be read.
+export async function readStreamedAddresses(
+  client: SuiJsonRpcClient,
+  poolId: string,
+): Promise<Set<string>> {
+  const out = new Set<string>()
+  const pool = await client.getObject({ id: poolId, options: { showContent: true } })
+  const pc = pool.data?.content
+  if (!pc || pc.dataType !== 'moveObject') return out
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tableId: string | undefined = (pc.fields as any)?.streams?.fields?.id?.id
+  if (!tableId) return out
+
+  let cursor: string | null | undefined = null
+  do {
+    const page = await client.getDynamicFields({ parentId: tableId, cursor: cursor ?? null })
+    for (const f of page.data) {
+      // Table<address, Stream> rows surface as name = { type: 'address', value: '0x..' }.
+      const v = f.name?.value
+      if (typeof v === 'string') out.add(v)
+    }
+    cursor = page.hasNextPage ? page.nextCursor : null
+  } while (cursor)
+  return out
 }
 
 // The org address that owns/controls a pool (pool.org field).
