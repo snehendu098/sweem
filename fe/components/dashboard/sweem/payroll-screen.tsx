@@ -24,7 +24,7 @@ import {
 import { DashboardPageShell } from "@/components/dashboard/dashboard-screen";
 import { useOrgPool } from "./use-org-pool";
 import { LiveTicker } from "./live-ticker";
-import { Stat, ActionButton, Modal, ProtocolRow, ConnectGate } from "./ui";
+import { ActionButton, Modal, ProtocolRow, ConnectGate } from "./ui";
 import { monthlyRate, shortAddr } from "./helpers";
 
 export function PayrollScreen() {
@@ -252,15 +252,30 @@ export function PayrollScreen() {
             </ActionButton>
           )}
         </div>
-        <div className="sweem-grid sweem-grid-3">
-          <Stat label="Monthly payroll" value={`${totalMonthly.toFixed(2)} USDC`} />
-          <Stat label="Idle (liquid)" value={`${idleUsdc.toFixed(2)} USDC`} />
-          <Stat label="Coverage floor" value={`${floorUsdc.toFixed(2)} USDC/wk`} />
+        <div className="sweem-metric-row">
+          <div>
+            <div className="dashboard-metric-label">Monthly payroll</div>
+            <div className="dashboard-metric-value">
+              {totalMonthly.toFixed(2)} <span className="sweem-metric-unit">USDC</span>
+            </div>
+          </div>
+          <div>
+            <div className="dashboard-metric-label">Idle (liquid)</div>
+            <div className="dashboard-metric-value">
+              {idleUsdc.toFixed(2)} <span className="sweem-metric-unit">USDC</span>
+            </div>
+          </div>
+          <div>
+            <div className="dashboard-metric-label">Coverage floor</div>
+            <div className="dashboard-metric-value">
+              {floorUsdc.toFixed(2)} <span className="sweem-metric-unit">USDC/wk</span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* streams table */}
-      <div className="dashboard-data-table-wrap">
+      <div className="dashboard-data-table-wrap sweem-tablecard">
         {roster.length === 0 ? (
           <div className="sweem-gate">No employees with a USDC rate yet.</div>
         ) : (

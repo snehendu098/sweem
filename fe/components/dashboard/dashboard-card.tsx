@@ -40,10 +40,12 @@ export function DashboardCard({
 
   const body = (
     <>
-      <span className="dashboard-action-icon">
-        <Icon name={icon} size={22} strokeWidth={2.8} />
-      </span>
-      <h2>{title}</h2>
+      <div className="dashboard-action-head">
+        <span className="dashboard-action-icon">
+          <Icon name={icon} size={22} strokeWidth={2.8} />
+        </span>
+        <h2>{title}</h2>
+      </div>
       <p>{description}</p>
       {actions}
     </>

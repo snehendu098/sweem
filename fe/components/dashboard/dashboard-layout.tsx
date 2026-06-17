@@ -6,12 +6,17 @@ import { Sidebar } from "./sidebar";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div className="dashboard-shell">
       <Navbar onMenuClick={() => setSidebarOpen((open) => !open)} />
       <div className="dashboard-main-row">
-        <Sidebar open={sidebarOpen} />
+        <Sidebar
+          open={sidebarOpen}
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((c) => !c)}
+        />
         <main className="dashboard-content-scroll">{children}</main>
       </div>
     </div>

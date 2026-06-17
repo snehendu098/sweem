@@ -29,9 +29,6 @@ export function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
           <span>Feedback</span>
         </button>
         <WalletButton />
-        <button aria-label="Open profile" className="dashboard-avatar" type="button">
-          <Icon name="user" size={17} strokeWidth={2.1} />
-        </button>
       </div>
     </header>
   );
