@@ -1,5 +1,5 @@
 import { ChartToolbar } from "./chart-toolbar";
-import { MetricsOverview } from "./metrics-overview";
+import { MetricsOverview, type Metric } from "./metrics-overview";
 import { VolumeSummary } from "./volume-summary";
 
 function EmptyStateChart() {
@@ -22,7 +22,17 @@ function EmptyStateChart() {
   );
 }
 
-export function AnalyticsSection() {
+export function AnalyticsSection({
+  metrics,
+  volumeTitle,
+  volumeRows,
+  volumeNote,
+}: {
+  metrics?: Metric[];
+  volumeTitle?: string;
+  volumeRows?: [string, string][];
+  volumeNote?: string;
+} = {}) {
   return (
     <section className="dashboard-analytics" aria-labelledby="analytics-heading">
       <h2 id="analytics-heading" className="sr-only">
@@ -30,12 +40,12 @@ export function AnalyticsSection() {
       </h2>
       <div className="dashboard-analytics-main">
         <div className="dashboard-analytics-head">
-          <MetricsOverview />
+          <MetricsOverview metrics={metrics} />
           <ChartToolbar />
         </div>
         <EmptyStateChart />
       </div>
-      <VolumeSummary />
+      <VolumeSummary title={volumeTitle} rows={volumeRows} note={volumeNote} />
     </section>
   );
 }

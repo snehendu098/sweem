@@ -1,9 +1,13 @@
-const metrics = [
+import type { ReactNode } from "react";
+
+export type Metric = { label: string; value: ReactNode };
+
+const defaultMetrics: Metric[] = [
   { label: "Gross Volume", value: "$0" },
   { label: "No. of Payments", value: "0" },
 ];
 
-export function MetricsOverview() {
+export function MetricsOverview({ metrics = defaultMetrics }: { metrics?: Metric[] }) {
   return (
     <div className="dashboard-metrics">
       {metrics.map((metric) => (

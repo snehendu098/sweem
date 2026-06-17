@@ -462,7 +462,7 @@ a:hover {
 .dashboard-volume-title {
   color: #8e97aa;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: -0.02em;
 }
 
@@ -492,7 +492,7 @@ a:hover {
   background: #eceff5;
   color: #a3abba;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .dashboard-chart-tab-active {
@@ -604,7 +604,7 @@ a:hover {
   justify-content: space-between;
   color: #515b70;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: -0.02em;
 }
 
@@ -2116,4 +2116,248 @@ a.brand-nav-heading {
   .pricing-featured {
     transform: none;
   }
+}
+
+/* ─── Sweem on-chain wiring ─────────────────────────────────
+   Functional payroll/streaming/vault UI. Reuses the dashboard
+   design tokens (--dash-*) so it matches the existing shell. */
+
+.sweem-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.16);
+}
+
+.sweem-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+@media (min-width: 720px) {
+  .sweem-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.sweem-card {
+  border: 1px solid var(--dash-line);
+  border-radius: var(--dash-radius);
+  background: var(--dash-panel);
+  padding: 18px 20px;
+}
+
+.sweem-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.sweem-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dash-text);
+}
+
+.sweem-card-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--dash-muted);
+}
+
+.sweem-stat {
+  border: 1px solid var(--dash-line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px 14px;
+}
+
+.sweem-stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dash-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sweem-stat-value {
+  margin-top: 6px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--dash-text);
+}
+
+.sweem-stat-value-mono {
+  font-family: var(--font-geist-mono, ui-monospace), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+}
+
+.sweem-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dash-muted);
+  margin-bottom: 6px;
+}
+
+.sweem-input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid var(--dash-line-strong);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--dash-text);
+  outline: none;
+}
+.sweem-input:focus {
+  border-color: var(--dash-blue);
+  box-shadow: 0 0 0 3px rgba(91, 104, 240, 0.14);
+}
+
+.sweem-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.sweem-badge-live {
+  background: #e7f7ed;
+  color: #16794a;
+}
+.sweem-badge-paused {
+  background: #fdf3e0;
+  color: #98620a;
+}
+.sweem-badge-stopped {
+  background: #fdeaea;
+  color: #b4231f;
+}
+.sweem-badge-idle {
+  background: #eef1f7;
+  color: #5f6a7f;
+}
+
+/* Real data rows (distinct from the empty-state dashboard-data-table) */
+.sweem-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.sweem-table th {
+  height: 40px;
+  border-bottom: 1px solid var(--dash-line);
+  color: #5f6a7f;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  padding: 0 12px;
+}
+.sweem-table td {
+  height: 52px;
+  border-bottom: 1px solid var(--dash-line);
+  color: var(--dash-text);
+  font-size: 13px;
+  padding: 0 12px;
+}
+.sweem-table tr:last-child td {
+  border-bottom: none;
+}
+.sweem-mono {
+  font-family: var(--font-geist-mono, ui-monospace), monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.sweem-protocol-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--dash-line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+/* Lightweight modal (no dialog dependency) */
+.sweem-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(16, 24, 40, 0.45);
+  backdrop-filter: blur(2px);
+}
+.sweem-modal {
+  width: 100%;
+  max-width: 440px;
+  border-radius: 14px;
+  background: #fff;
+  padding: 22px 24px;
+  box-shadow: 0 20px 60px rgba(16, 24, 40, 0.24);
+}
+.sweem-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dash-text);
+}
+.sweem-modal-sub {
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--dash-muted);
+}
+
+.sweem-error {
+  font-size: 12.5px;
+  color: #b4231f;
+}
+.sweem-hint {
+  font-size: 12px;
+  color: var(--dash-faint);
+}
+.sweem-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--dash-muted);
+}
+
+.sweem-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+button.dashboard-screen-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Real data rows inside the home "Recent payments" table */
+.dashboard-table .dashboard-pay-row td {
+  height: 52px;
+  border-bottom: 1px solid var(--dash-line);
+  font-size: 13px;
+  color: var(--dash-text);
+  padding-right: 8px;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dashboard-table .dashboard-pay-row:last-child td {
+  border-bottom: none;
 }

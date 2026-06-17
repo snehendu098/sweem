@@ -1,5 +1,6 @@
 import { Badge } from "./badge";
 import { Icon } from "./icons";
+import { WalletButton } from "./wallet-button";
 
 export function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
   return (
@@ -27,6 +28,7 @@ export function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
           <Icon name="feedback" size={16} strokeWidth={2.55} />
           <span>Feedback</span>
         </button>
+        <WalletButton />
         <button aria-label="Open profile" className="dashboard-avatar" type="button">
           <Icon name="user" size={17} strokeWidth={2.1} />
         </button>

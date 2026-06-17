@@ -23,8 +23,10 @@ type NavItem = {
 };
 
 const navItems: readonly NavItem[] = [
-  { icon: "home", label: "Home", href: "/dashboard" },
-  { icon: "payment", label: "Payments", href: "/dashboard/payments" },
+  { icon: "home", label: "Overview", href: "/dashboard" },
+  { icon: "payment", label: "Payroll", href: "/dashboard/payments" },
+  { icon: "customer", label: "Employees", href: "/dashboard/customers" },
+  { icon: "link", label: "Employee portal", href: "/dashboard/portal" },
   { icon: "link", label: "Payment links", href: "/dashboard/payment-links" },
   {
     icon: "billing",
@@ -37,7 +39,6 @@ const navItems: readonly NavItem[] = [
     ],
   },
   { icon: "invoice", label: "Invoices", href: "/dashboard/invoices" },
-  { icon: "customer", label: "Customers", href: "/dashboard/customers" },
   { icon: "box", label: "Products", href: "/dashboard/products" },
   {
     icon: "bank",
@@ -140,7 +141,7 @@ export function Sidebar({ open }: { open: boolean }) {
       </nav>
 
       <button className="dashboard-testnet" type="button">
-        Try Testnet <span aria-hidden="true">→</span>
+        Sui Mainnet · Live <span aria-hidden="true">→</span>
       </button>
     </aside>
   );
