@@ -2,10 +2,10 @@ import type { Context } from 'hono'
 import { eq } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 import { createDb } from '../db/client'
-import { paymentGroupPools, employees } from '../db/schema'
+import { orgPools, employees } from '../db/schema'
 import { createSuiClient, getObjectFields } from '../lib/sui'
 import { computeSlicePerMs } from '../lib/slice'
-import { resolveMaxYield } from '../lib/yield'
+import { resolveMaxYield, fetchNaviApy, fetchScallopApy, type YieldQuote } from '../lib/yield'
 import type { AppEnv } from '../types'
 
 export async function getSlice(c: Context<AppEnv>) {
@@ -21,8 +21,8 @@ export async function getRunway(c: Context<AppEnv>) {
   const db = createDb(c.env.DB.connectionString)
   const sui = createSuiClient(c.env.SUI_NETWORK)
 
-  const pool = await db.query.paymentGroupPools.findFirst({
-    where: eq(paymentGroupPools.onChainPoolId, poolId),
+  const pool = await db.query.orgPools.findFirst({
+    where: eq(orgPools.onChainPoolId, poolId),
   })
   if (!pool) throw new HTTPException(404, { message: 'Pool not found' })
 
@@ -30,13 +30,13 @@ export async function getRunway(c: Context<AppEnv>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const balance = Number((fields as any)?.balance ?? 0)
 
-  const groupEmployees = await db.query.employees.findMany({
-    where: eq(employees.paymentGroupId, pool.paymentGroupId),
+  const orgEmployees = await db.query.employees.findMany({
+    where: eq(employees.orgWallet, pool.orgWallet),
     with: { rates: true },
   })
 
   let activeSliceTotal = 0
-  for (const emp of groupEmployees) {
+  for (const emp of orgEmployees) {
     for (const rate of emp.rates) {
       if (rate.token === pool.token && rate.rateAmount && rate.rateType) {
         activeSliceTotal += computeSlicePerMs(Number(rate.rateAmount), rate.rateType as 'MONTHLY' | 'HOURLY')
@@ -63,4 +63,17 @@ export async function getMaxYield(c: Context<AppEnv>) {
 
   const result = await resolveMaxYield(token)
   return c.json({ token, ...result })
+}
+
+// Per-protocol live supply APRs (Navi + Scallop) for the invest popup.
+export async function getYields(c: Context<AppEnv>) {
+  const token = c.req.query('token')
+  if (!token) throw new HTTPException(400, { message: 'token required' })
+
+  const settled = await Promise.allSettled([fetchNaviApy(token), fetchScallopApy(token)])
+  const quotes: YieldQuote[] = settled
+    .filter((r): r is PromiseFulfilledResult<YieldQuote> => r.status === 'fulfilled')
+    .map((r) => r.value)
+
+  return c.json({ token, quotes })
 }

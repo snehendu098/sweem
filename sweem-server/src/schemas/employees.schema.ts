@@ -15,7 +15,13 @@ const rateSchema = z.union([
 export const createEmployeeSchema = z.object({
   alias: z.string().min(1).max(100),
   wallet_address: z.string().min(1),
+  group_id: z.string().uuid().nullable().optional(),
   rates: z.array(rateSchema).optional(),
 })
 
 export const updateRatesSchema = z.array(rateSchema)
+
+export const updateEmployeeSchema = z.object({
+  group_id: z.string().uuid().nullable().optional(),
+  rates: z.array(rateSchema).optional(),
+})

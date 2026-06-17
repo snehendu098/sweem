@@ -1,9 +1,11 @@
-const NAVI_POOLS_URL     = 'https://open-api.naviprotocol.io/api/pool'
+const NAVI_POOLS_URL     = 'https://open-api.naviprotocol.io/api/navi/pools'
 const SCALLOP_MARKET_URL = 'https://sdk.api.scallop.io/api/market/migrate'
 
 export type YieldQuote = { protocol: string; apy: number }
 
-type NaviPool    = { symbol: string; supplyApy: string }
+// Navi /api/navi/pools entry — symbol under token.symbol; supply APY (incl. incentives)
+// under supplyIncentiveApyInfo.apy (string %, e.g. "6.034"). top-level supplyApy is null.
+type NaviPool    = { token?: { symbol?: string }; symbol?: string; supplyIncentiveApyInfo?: { apy?: string }; supplyApy?: string | null }
 type ScallopPool = { coinName: string; supplyApy: number }
 
 export async function resolveMaxYield(token: string): Promise<YieldQuote> {
@@ -25,12 +27,16 @@ export async function fetchNaviApy(token: string): Promise<YieldQuote> {
   const res = await fetch(NAVI_POOLS_URL)
   if (!res.ok) throw new Error(`Navi API ${res.status}`)
 
-  const pools: NaviPool[] = await res.json()
-  const pool = pools.find((p) => p.symbol.toUpperCase() === token.toUpperCase())
+  const json = (await res.json()) as NaviPool[] | { data?: NaviPool[] }
+  const pools: NaviPool[] = Array.isArray(json) ? json : (json.data ?? [])
+  const pool = pools.find(
+    (p) => (p.token?.symbol ?? p.symbol ?? '').toUpperCase() === token.toUpperCase(),
+  )
   if (!pool) throw new Error(`Navi: no pool for ${token}`)
 
-  // Navi returns supplyApy as a string percentage e.g. "5.334"
-  return { protocol: 'NAVI', apy: parseFloat(pool.supplyApy) }
+  // Supply APY (incl. incentives) is a string percentage e.g. "6.034".
+  const apy = parseFloat(pool.supplyIncentiveApyInfo?.apy ?? pool.supplyApy ?? '0')
+  return { protocol: 'NAVI', apy }
 }
 
 export async function fetchScallopApy(token: string): Promise<YieldQuote> {

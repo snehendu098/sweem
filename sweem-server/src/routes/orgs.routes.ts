@@ -5,6 +5,8 @@ import { authMiddleware } from '../middleware/auth.middleware'
 import { createOrg, getOrg, updateOrg } from '../controllers/orgs.controllers'
 import { createOrgSchema, updateOrgSchema } from '../schemas/orgs.schema'
 import groupRoutes from './groups.routes'
+import employeeRoutes from './employees.routes'
+import poolRoutes from './pools.routes'
 
 const orgs = new Hono<AuthEnv>()
 
@@ -13,5 +15,7 @@ orgs.get('/:wallet', getOrg)
 orgs.put('/:wallet', authMiddleware, zValidator('json', updateOrgSchema), updateOrg)
 
 orgs.route('/:wallet/groups', groupRoutes)
+orgs.route('/:wallet/employees', employeeRoutes)
+orgs.route('/:wallet/pools', poolRoutes)
 
 export default orgs

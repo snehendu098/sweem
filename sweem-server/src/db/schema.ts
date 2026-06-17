@@ -10,6 +10,8 @@ export const organizations = pgTable('organizations', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Payment groups are OFF-CHAIN categories (Engineering, Marketing, …). They do
+// NOT own a pool — everyone in an org streams from the org's single pool.
 export const paymentGroups = pgTable('payment_groups', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgWallet: text('org_wallet').notNull().references(() => organizations.walletAddress, { onDelete: 'cascade' }),
@@ -19,25 +21,33 @@ export const paymentGroups = pgTable('payment_groups', {
   index('idx_payment_groups_org').on(t.orgWallet),
 ])
 
-export const paymentGroupPools = pgTable('payment_group_pools', {
+// ONE on-chain StreamPool per org per token. All employees (across all groups)
+// stream from it. Replaces the old per-group pool.
+export const orgPools = pgTable('org_pools', {
   id: uuid('id').primaryKey().defaultRandom(),
-  paymentGroupId: uuid('payment_group_id').notNull().references(() => paymentGroups.id, { onDelete: 'cascade' }),
+  orgWallet: text('org_wallet').notNull(),
   token: text('token').notNull(),
   onChainPoolId: text('on_chain_pool_id').notNull(),
 }, (t) => [
-  unique().on(t.paymentGroupId, t.token),
-  index('idx_pgp_group').on(t.paymentGroupId),
+  foreignKey({ columns: [t.orgWallet], foreignColumns: [organizations.walletAddress], name: 'org_pools_org_fk' }).onDelete('cascade'),
+  unique().on(t.orgWallet, t.token),
+  index('idx_org_pools_org').on(t.orgWallet),
 ])
 
+// Employees are an ORG-LEVEL roster. groupId is an optional off-chain category.
 export const employees = pgTable('employees', {
   id: uuid('id').primaryKey().defaultRandom(),
   alias: text('alias').notNull(),
   walletAddress: text('wallet_address').notNull(),
-  paymentGroupId: uuid('payment_group_id').notNull().references(() => paymentGroups.id, { onDelete: 'cascade' }),
+  orgWallet: text('org_wallet').notNull(),
+  groupId: uuid('group_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  unique().on(t.walletAddress, t.paymentGroupId),
-  index('idx_employees_group').on(t.paymentGroupId),
+  foreignKey({ columns: [t.orgWallet], foreignColumns: [organizations.walletAddress], name: 'emp_org_fk' }).onDelete('cascade'),
+  foreignKey({ columns: [t.groupId], foreignColumns: [paymentGroups.id], name: 'emp_group_fk' }).onDelete('set null'),
+  unique().on(t.walletAddress, t.orgWallet),
+  index('idx_employees_org').on(t.orgWallet),
+  index('idx_employees_group').on(t.groupId),
   index('idx_employees_wallet').on(t.walletAddress),
 ])
 
@@ -76,42 +86,39 @@ export const vaultAllocations = pgTable('vault_allocations', {
   index('idx_va_vault').on(t.vaultId),
 ])
 
+// Yield routing per org pool (out of demo scope, kept coherent — now points at org_pools).
 export const lastYieldRoutes = pgTable('last_yield_routes', {
   id: uuid('id').primaryKey().defaultRandom(),
-  paymentGroupPoolId: uuid('payment_group_pool_id').notNull(),
+  orgPoolId: uuid('org_pool_id').notNull(),
   protocol: text('protocol').notNull(),
   yieldType: text('yield_type').notNull(),
   allocationPct: numeric('allocation_pct').notNull(),
 }, (t) => [
-  // Explicit short FK name — the auto-generated name overflowed Postgres' 63-char
-  // identifier limit and was being truncated (NOTICE 42622).
-  foreignKey({
-    columns: [t.paymentGroupPoolId],
-    foreignColumns: [paymentGroupPools.id],
-    name: 'lyr_pgp_fk',
-  }).onDelete('cascade'),
-  unique().on(t.paymentGroupPoolId, t.protocol),
-  index('idx_lyr_pool').on(t.paymentGroupPoolId),
+  foreignKey({ columns: [t.orgPoolId], foreignColumns: [orgPools.id], name: 'lyr_pool_fk' }).onDelete('cascade'),
+  unique().on(t.orgPoolId, t.protocol),
+  index('idx_lyr_pool').on(t.orgPoolId),
 ])
 
 // Relations
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   groups: many(paymentGroups),
+  employees: many(employees),
+  pools: many(orgPools),
 }))
 
 export const paymentGroupsRelations = relations(paymentGroups, ({ one, many }) => ({
   org: one(organizations, { fields: [paymentGroups.orgWallet], references: [organizations.walletAddress] }),
-  pools: many(paymentGroupPools),
   employees: many(employees),
 }))
 
-export const paymentGroupPoolsRelations = relations(paymentGroupPools, ({ one, many }) => ({
-  group: one(paymentGroups, { fields: [paymentGroupPools.paymentGroupId], references: [paymentGroups.id] }),
+export const orgPoolsRelations = relations(orgPools, ({ one, many }) => ({
+  org: one(organizations, { fields: [orgPools.orgWallet], references: [organizations.walletAddress] }),
   yieldRoutes: many(lastYieldRoutes),
 }))
 
 export const employeesRelations = relations(employees, ({ one, many }) => ({
-  group: one(paymentGroups, { fields: [employees.paymentGroupId], references: [paymentGroups.id] }),
+  org: one(organizations, { fields: [employees.orgWallet], references: [organizations.walletAddress] }),
+  group: one(paymentGroups, { fields: [employees.groupId], references: [paymentGroups.id] }),
   rates: many(employeeTokenRates),
 }))
 
@@ -128,5 +135,5 @@ export const vaultAllocationsRelations = relations(vaultAllocations, ({ one }) =
 }))
 
 export const lastYieldRoutesRelations = relations(lastYieldRoutes, ({ one }) => ({
-  pool: one(paymentGroupPools, { fields: [lastYieldRoutes.paymentGroupPoolId], references: [paymentGroupPools.id] }),
+  pool: one(orgPools, { fields: [lastYieldRoutes.orgPoolId], references: [orgPools.id] }),
 }))

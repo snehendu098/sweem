@@ -1,5 +1,5 @@
 {
-  "id": "dc2c43b5-863b-4127-89f2-d6e7c19ff368",
+  "id": "eeba8b02-6c98-4402-b1d9-7eabb0cd1dc4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -190,11 +190,17 @@
           "primaryKey": false,
           "notNull": true
         },
-        "payment_group_id": {
-          "name": "payment_group_id",
-          "type": "uuid",
+        "org_wallet": {
+          "name": "org_wallet",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -205,11 +211,26 @@
         }
       },
       "indexes": {
+        "idx_employees_org": {
+          "name": "idx_employees_org",
+          "columns": [
+            {
+              "expression": "org_wallet",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "idx_employees_group": {
           "name": "idx_employees_group",
           "columns": [
             {
-              "expression": "payment_group_id",
+              "expression": "group_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -237,28 +258,41 @@
         }
       },
       "foreignKeys": {
-        "employees_payment_group_id_payment_groups_id_fk": {
-          "name": "employees_payment_group_id_payment_groups_id_fk",
+        "emp_org_fk": {
+          "name": "emp_org_fk",
+          "tableFrom": "employees",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_wallet"
+          ],
+          "columnsTo": [
+            "wallet_address"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "emp_group_fk": {
+          "name": "emp_group_fk",
           "tableFrom": "employees",
           "tableTo": "payment_groups",
           "columnsFrom": [
-            "payment_group_id"
+            "group_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "employees_wallet_address_payment_group_id_unique": {
-          "name": "employees_wallet_address_payment_group_id_unique",
+        "employees_wallet_address_org_wallet_unique": {
+          "name": "employees_wallet_address_org_wallet_unique",
           "nullsNotDistinct": false,
           "columns": [
             "wallet_address",
-            "payment_group_id"
+            "org_wallet"
           ]
         }
       },
@@ -277,8 +311,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "payment_group_pool_id": {
-          "name": "payment_group_pool_id",
+        "org_pool_id": {
+          "name": "org_pool_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -307,7 +341,7 @@
           "name": "idx_lyr_pool",
           "columns": [
             {
-              "expression": "payment_group_pool_id",
+              "expression": "org_pool_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -320,12 +354,12 @@
         }
       },
       "foreignKeys": {
-        "lyr_pgp_fk": {
-          "name": "lyr_pgp_fk",
+        "lyr_pool_fk": {
+          "name": "lyr_pool_fk",
           "tableFrom": "last_yield_routes",
-          "tableTo": "payment_group_pools",
+          "tableTo": "org_pools",
           "columnsFrom": [
-            "payment_group_pool_id"
+            "org_pool_id"
           ],
           "columnsTo": [
             "id"
@@ -336,12 +370,89 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "last_yield_routes_payment_group_pool_id_protocol_unique": {
-          "name": "last_yield_routes_payment_group_pool_id_protocol_unique",
+        "last_yield_routes_org_pool_id_protocol_unique": {
+          "name": "last_yield_routes_org_pool_id_protocol_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "payment_group_pool_id",
+            "org_pool_id",
             "protocol"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.org_pools": {
+      "name": "org_pools",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "org_wallet": {
+          "name": "org_wallet",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "on_chain_pool_id": {
+          "name": "on_chain_pool_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "idx_org_pools_org": {
+          "name": "idx_org_pools_org",
+          "columns": [
+            {
+              "expression": "org_wallet",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "org_pools_org_fk": {
+          "name": "org_pools_org_fk",
+          "tableFrom": "org_pools",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_wallet"
+          ],
+          "columnsTo": [
+            "wallet_address"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "org_pools_org_wallet_token_unique": {
+          "name": "org_pools_org_wallet_token_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "org_wallet",
+            "token"
           ]
         }
       },
@@ -383,83 +494,6 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.payment_group_pools": {
-      "name": "payment_group_pools",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "payment_group_id": {
-          "name": "payment_group_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "token": {
-          "name": "token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "on_chain_pool_id": {
-          "name": "on_chain_pool_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "idx_pgp_group": {
-          "name": "idx_pgp_group",
-          "columns": [
-            {
-              "expression": "payment_group_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "payment_group_pools_payment_group_id_payment_groups_id_fk": {
-          "name": "payment_group_pools_payment_group_id_payment_groups_id_fk",
-          "tableFrom": "payment_group_pools",
-          "tableTo": "payment_groups",
-          "columnsFrom": [
-            "payment_group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "payment_group_pools_payment_group_id_token_unique": {
-          "name": "payment_group_pools_payment_group_id_token_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "payment_group_id",
-            "token"
-          ]
-        }
-      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
