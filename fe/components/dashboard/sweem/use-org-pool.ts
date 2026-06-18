@@ -6,7 +6,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useSweemApi } from "@/lib/api";
 import { fromRaw } from "@/lib/sweem";
-import { readPoolSummary, readPoolInvestments, readClaimable } from "@/lib/tx";
+import {
+  readPoolSummary,
+  readPoolInvestments,
+  readClaimable,
+  readStreamStatuses,
+} from "@/lib/tx";
 import { monthlyRate } from "./helpers";
 
 // Shared org + on-chain pool state, used by the Overview and Payroll screens so
@@ -42,17 +47,20 @@ export function useOrgPool() {
     refetchInterval: 5000,
     queryFn: async () => {
       const id = onChainPoolId!;
-      const [summary, inv, claimables] = await Promise.all([
+      const [summary, inv, claimables, statusByEmployee] = await Promise.all([
         readPoolSummary(client, id),
         readPoolInvestments(client, id),
         Promise.all(empAddrs.map((a) => readClaimable(client, id, a).catch(() => 0n))),
+        readStreamStatuses(client, id, empAddrs).catch(
+          () => ({}) as Record<string, { paused: boolean; stopped: boolean }>,
+        ),
       ]);
       const accruedRaw = claimables.reduce((s, c) => s + c, 0n);
       const byEmployee: Record<string, bigint> = {};
       empAddrs.forEach((a, i) => {
         byEmployee[a] = claimables[i];
       });
-      return { summary, inv, accruedRaw, byEmployee };
+      return { summary, inv, accruedRaw, byEmployee, statusByEmployee };
     },
   });
 

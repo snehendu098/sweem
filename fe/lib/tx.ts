@@ -82,6 +82,28 @@ export function claimTx(poolId: string): Transaction {
   return tx
 }
 
+// stream_pool::pause_stream<USDC>(pool, employee, clock) — org/PauserRole; freezes accrual.
+export function pauseStreamTx(poolId: string, employee: string): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${CORE}::stream_pool::pause_stream`,
+    typeArguments: [USDC],
+    arguments: [tx.object(poolId), tx.pure.address(employee), tx.object(CLOCK)],
+  })
+  return tx
+}
+
+// stream_pool::resume_stream<USDC>(pool, employee, clock) — org/PauserRole; resumes accrual.
+export function resumeStreamTx(poolId: string, employee: string): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${CORE}::stream_pool::resume_stream`,
+    typeArguments: [USDC],
+    arguments: [tx.object(poolId), tx.pure.address(employee), tx.object(CLOCK)],
+  })
+  return tx
+}
+
 // navi::pool_invest_navi<USDC>(pool, storage, navi_pool, inc_v2, inc_v3, registry, clock, asset_id, amount)
 // If the pool has no stored Navi AccountCap yet, mint one (lending::create_account) and
 // store it into the pool DOF in the SAME tx before investing.
@@ -329,6 +351,53 @@ export async function readStream(
     paused: optSet(v.paused_at),
     stopped: optSet(v.stopped_at),
   }
+}
+
+// Batch read paused/stopped status for many employees in one pass.
+// Fetches the pool (and its streams Table id) once, then one dynamic-field read
+// per employee. Returns a map keyed by employee address; absent rows are omitted.
+export async function readStreamStatuses(
+  client: SuiJsonRpcClient,
+  poolId: string,
+  employees: string[],
+): Promise<Record<string, { paused: boolean; stopped: boolean }>> {
+  const out: Record<string, { paused: boolean; stopped: boolean }> = {}
+  const pool = await client.getObject({ id: poolId, options: { showContent: true } })
+  const pc = pool.data?.content
+  if (!pc || pc.dataType !== 'moveObject') return out
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tableId: string | undefined = (pc.fields as any)?.streams?.fields?.id?.id
+  if (!tableId) return out
+
+  const optSet = (o: unknown): boolean => {
+    if (o == null) return false
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const a = o as any
+    if (Array.isArray(a)) return a.length > 0
+    if (Array.isArray(a?.vec)) return a.vec.length > 0
+    if (Array.isArray(a?.fields?.vec)) return a.fields.vec.length > 0
+    return true
+  }
+
+  await Promise.all(
+    employees.map(async (employee) => {
+      try {
+        const row = await client.getDynamicFieldObject({
+          parentId: tableId,
+          name: { type: 'address', value: employee },
+        })
+        const rc = row.data?.content
+        if (!rc || rc.dataType !== 'moveObject') return
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const v: any = (rc.fields as any)?.value?.fields ?? (rc.fields as any)?.value
+        if (!v) return
+        out[employee] = { paused: optSet(v.paused_at), stopped: optSet(v.stopped_at) }
+      } catch {
+        /* no stream row for this employee */
+      }
+    }),
+  )
+  return out
 }
 
 // The org address that owns/controls a pool (pool.org field).

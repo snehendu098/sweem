@@ -13,7 +13,7 @@ Storage is split across two layers — database for metadata, Sui contracts for 
 - Employee groups (e.g. "Engineering", "Marketing") are a UI concept — they are labels stored in the backend database mapping group name → employee addresses. On-chain, all employees are entries in the same `streams: Table<address, Stream>`.
 - This design keeps on-chain objects minimal and leverages Sui's parallel execution — separate pools for separate token types, not separate pools per department.
 - When funding multiple groups, the frontend constructs a single PTB: `splitCoins` the org's coin, then `deposit`/`topup` each pool in the same atomic transaction.
-- Employees can be paused (temporary) or stopped (permanent) at any time
+- Employees can be paused (temporary) or stopped (permanent) at any time — the org toggles pause/resume per employee from the Payroll dashboard
 - Removed employees can still claim their already-earned funds; freed funds stay in the pool to extend runway for remaining employees
 - Payment mode A: individual rate per employee (monthly or hourly) — stored as `(rate_amount, rate_period_ms)` on-chain
 - Payment mode B: org sets total group stream rate, each employee gets a percentage of it

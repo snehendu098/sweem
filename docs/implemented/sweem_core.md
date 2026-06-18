@@ -73,6 +73,8 @@ The minimum claim is 10% of a full week's earnings at the current rate, to preve
 | `stop_stream` | org only | Sets `stopped_at`, employee can still claim earned-so-far |
 | `claim` | employee | Transfers claimable amount to caller |
 
+**Frontend wiring:** the org Payroll screen (`fe/components/dashboard/sweem/payroll-screen.tsx`) renders a per-employee **Pause / Resume** button in the streams table. The button calls `pauseStreamTx` / `resumeStreamTx` (`fe/lib/tx.ts`) and the status badge (`Streaming` / `Paused` / `Stopped`) is driven by `readStreamStatuses`, which batch-reads each stream's `paused_at` / `stopped_at` from the pool's `streams` Table. While paused, the row's live ticker freezes to mirror on-chain accrual.
+
 ### PauserRole delegation
 
 Orgs can delegate pause/resume authority to other addresses without giving them org-level access:

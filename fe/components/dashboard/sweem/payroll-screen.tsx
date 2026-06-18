@@ -18,7 +18,9 @@ import {
   findCreatedPoolId,
   investNaviTx,
   investScallopTx,
+  pauseStreamTx,
   poolHasNaviCap,
+  resumeStreamTx,
   type EmployeeStream,
 } from "@/lib/tx";
 import { DashboardPageShell } from "@/components/dashboard/dashboard-screen";
@@ -191,6 +193,29 @@ export function PayrollScreen() {
     }
   }
 
+  // ── pause / resume a single employee's stream ───────────────────────────────
+  async function handleToggleStream(employee: string, paused: boolean) {
+    if (!onChainPoolId) return;
+    setBusy(true);
+    const t = toast.loading(paused ? "Resuming stream…" : "Pausing stream…");
+    try {
+      const tx = paused
+        ? resumeStreamTx(onChainPoolId, employee)
+        : pauseStreamTx(onChainPoolId, employee);
+      const r = await signAndExecute({ transaction: tx });
+      await client.waitForTransaction({
+        digest: r.digest,
+        options: { showEffects: true },
+      });
+      await poolState.refetch();
+      toast.success(paused ? "Stream resumed" : "Stream paused", { id: t });
+    } catch (e) {
+      toast.error((e as Error).message, { id: t });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // ── gates ─────────────────────────────────────────────────────────────────
   if (!wallet) {
     return (
@@ -213,6 +238,7 @@ export function PayrollScreen() {
 
   const roster = employees.filter((e) => monthlyRate(e) > 0);
   const byEmployee = poolState.data?.byEmployee ?? {};
+  const statusByEmployee = poolState.data?.statusByEmployee ?? {};
 
   return (
     <DashboardPageShell
@@ -287,32 +313,60 @@ export function PayrollScreen() {
                 <th>Monthly</th>
                 <th>Status</th>
                 <th>Streamed to date</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {roster.map((e) => (
-                <tr key={e.id}>
-                  <td className="font-medium">{e.alias}</td>
-                  <td className="sweem-mono text-xs">{shortAddr(e.walletAddress)}</td>
-                  <td>{monthlyRate(e).toFixed(2)} USDC</td>
-                  <td>
-                    <span
-                      className={`sweem-badge ${funded ? "sweem-badge-live" : "sweem-badge-idle"}`}
-                    >
-                      {funded ? "Streaming" : "Pending"}
-                    </span>
-                  </td>
-                  <td className="sweem-mono">
-                    <LiveTicker
-                      baseRaw={byEmployee[e.walletAddress] ?? 0n}
-                      rateRaw={toRaw(monthlyRate(e))}
-                      periodMs={BigInt(MONTH_MS)}
-                      anchorAt={anchorAt}
-                      active={funded}
-                    />
-                  </td>
-                </tr>
-              ))}
+              {roster.map((e) => {
+                const st = statusByEmployee[e.walletAddress];
+                const paused = !!st?.paused;
+                const stopped = !!st?.stopped;
+                const status = !funded
+                  ? "Pending"
+                  : stopped
+                    ? "Stopped"
+                    : paused
+                      ? "Paused"
+                      : "Streaming";
+                const badgeClass = !funded
+                  ? "sweem-badge-idle"
+                  : stopped
+                    ? "sweem-badge-stopped"
+                    : paused
+                      ? "sweem-badge-paused"
+                      : "sweem-badge-live";
+                return (
+                  <tr key={e.id}>
+                    <td className="font-medium">{e.alias}</td>
+                    <td className="sweem-mono text-xs">{shortAddr(e.walletAddress)}</td>
+                    <td>{monthlyRate(e).toFixed(2)} USDC</td>
+                    <td>
+                      <span className={`sweem-badge ${badgeClass}`}>{status}</span>
+                    </td>
+                    <td className="sweem-mono">
+                      <LiveTicker
+                        baseRaw={byEmployee[e.walletAddress] ?? 0n}
+                        rateRaw={toRaw(monthlyRate(e))}
+                        periodMs={BigInt(MONTH_MS)}
+                        anchorAt={anchorAt}
+                        active={funded && !paused && !stopped}
+                      />
+                    </td>
+                    <td>
+                      {funded && !stopped ? (
+                        <ActionButton
+                          onClick={() => handleToggleStream(e.walletAddress, paused)}
+                          disabled={busy}
+                        >
+                          {paused ? "Resume" : "Pause"}
+                        </ActionButton>
+                      ) : (
+                        <span className="sweem-hint">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
