@@ -1,24 +1,13 @@
-"use client";
+import { IconRail } from "./dx/icon-rail";
 
-import { useState } from "react";
-import { Navbar } from "./navbar";
-import { Sidebar } from "./sidebar";
-
+// Dashboard shell: icon-only rail + scrollable content area on a warm peach
+// canvas (Finexa/Sweem v2 design). Each page renders its own header — the
+// Overview owns the "Welcome back" hero + search bar from the reference.
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-
   return (
-    <div className="dashboard-shell">
-      <Navbar onMenuClick={() => setSidebarOpen((open) => !open)} />
-      <div className="dashboard-main-row">
-        <Sidebar
-          open={sidebarOpen}
-          collapsed={collapsed}
-          onToggle={() => setCollapsed((c) => !c)}
-        />
-        <main className="dashboard-content-scroll">{children}</main>
-      </div>
+    <div className="dx-shell">
+      <IconRail />
+      <main className="dx-main">{children}</main>
     </div>
   );
 }

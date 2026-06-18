@@ -4,24 +4,24 @@ const groups = [
   {
     title: "General",
     items: [
-      { title: "Account", description: "Basic info like user details and login details", color: "#8c98ad", icon: "user" },
-      { title: "Business", description: "Update your business details", color: "#5872f4", icon: "store" },
-      { title: "Branding", description: "Customise branding like logos & colours", color: "#a15ff0", icon: "brush" },
+      { title: "Account", description: "Basic info like user details and login details", color: "#024FA6", icon: "user" },
+      { title: "Business", description: "Update your business details", color: "#024FA6", icon: "store" },
+      { title: "Branding", description: "Customise branding like logos & colours", color: "#024FA6", icon: "brush" },
     ],
   },
   {
     title: "Payments",
     items: [
-      { title: "Payment methods", description: "Manage payment receiving address", color: "#28a3b6", icon: "card" },
-      { title: "Invoices", description: "Manage due dates, memos, footers, etc", color: "#ef45b8", icon: "invoice" },
-      { title: "Promocodes", description: "Manage promocodes based on your requirements", color: "#37a15d", icon: "dollar" },
-      { title: "Taxes", description: "Manage taxes based on your requirements", color: "#f04450", icon: "dollar" },
+      { title: "Payment methods", description: "Manage payment receiving address", color: "#024FA6", icon: "card" },
+      { title: "Invoices", description: "Manage due dates, memos, footers, etc", color: "#024FA6", icon: "invoice" },
+      { title: "Promocodes", description: "Manage promocodes based on your requirements", color: "#024FA6", icon: "dollar" },
+      { title: "Taxes", description: "Manage taxes based on your requirements", color: "#024FA6", icon: "dollar" },
     ],
   },
   {
     title: "Team",
     items: [
-      { title: "Team", description: "Manage your team members", color: "#8ec70a", icon: "team" },
+      { title: "Team", description: "Manage your team members", color: "#024FA6", icon: "team" },
     ],
   },
 ];
@@ -50,7 +50,10 @@ function SettingsIcon({ icon }: { icon: string }) {
 
 export default function SettingsPage() {
   return (
-    <DashboardPageShell title="Settings">
+    <DashboardPageShell
+      title="Settings"
+      subtitle="Manage your account, payments, and team — all in one place."
+    >
       <div className="dashboard-settings">
         {groups.map((group) => (
           <section className="dashboard-settings-group" key={group.title}>
@@ -58,12 +61,12 @@ export default function SettingsPage() {
             <div className="dashboard-settings-grid">
               {group.items.map((item) => (
                 <button className="dashboard-settings-card" key={item.title} type="button">
-                  <span className="dashboard-settings-icon" style={{ background: item.color }}>
-                    <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                  <span className="dashboard-settings-icon">
+                    <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <SettingsIcon icon={item.icon} />
                     </svg>
                   </span>
-                  <span>
+                  <span className="dashboard-settings-copy">
                     <strong>{item.title}</strong>
                     <small>{item.description}</small>
                   </span>

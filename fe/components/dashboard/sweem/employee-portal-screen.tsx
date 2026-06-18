@@ -32,7 +32,9 @@ import {
   type CoverOpts,
 } from "@/lib/tx";
 import { DashboardPageShell } from "@/components/dashboard/dashboard-screen";
+import { Icon } from "@/components/dashboard/icons";
 import { LiveTicker } from "./live-ticker";
+import { StreamFlow } from "./stream-flow";
 import { Stat, ActionButton, Modal, ProtocolRow, ConnectGate } from "./ui";
 import { shortAddr } from "./helpers";
 
@@ -169,7 +171,7 @@ function StreamCard({
       : "sweem-badge-live";
 
   return (
-    <div className="sweem-card">
+    <div className="sweem-card sweem-flow-card">
       <div className="sweem-card-head">
         <div>
           <p className="sweem-card-title">{orgName ?? shortAddr(org)}</p>
@@ -177,6 +179,14 @@ function StreamCard({
         </div>
         <span className={`sweem-badge ${badgeClass}`}>{status}</span>
       </div>
+
+      {/* React-Flow money-flow graph: org pool → you → wallet/vault */}
+      <StreamFlow
+        orgName={orgName ?? "Org Pool"}
+        poolShort={shortAddr(poolId)}
+        live={live}
+        status={status}
+      />
 
       <p className="sweem-stat-label">Claimable now</p>
       <p className="sweem-mono text-3xl font-semibold mt-1">
@@ -195,12 +205,12 @@ function StreamCard({
         </p>
       )}
 
-      <div className="sweem-actions mt-5">
+      <div className="sweem-actions">
         <ActionButton variant="primary" onClick={handleWithdrawToWallet} disabled={busy || !meetsMin}>
-          Withdraw to wallet
+          <Icon name="user" size={15} strokeWidth={2.1} /> Withdraw to wallet
         </ActionButton>
         <ActionButton onClick={handleWithdrawToVault} disabled={busy || !meetsMin}>
-          Withdraw to vault
+          <Icon name="bank" size={15} strokeWidth={2} /> Withdraw to vault
         </ActionButton>
       </div>
     </div>
@@ -349,7 +359,7 @@ export function EmployeePortalScreen() {
           <ConnectGate message="No streams found for your wallet." />
         </div>
       ) : (
-        <div className="grid gap-4 mt-5 md:grid-cols-2">
+        <div className="grid gap-5 mt-5">
           {pools.map((v) => (
             <StreamCard
               key={v.poolId}
