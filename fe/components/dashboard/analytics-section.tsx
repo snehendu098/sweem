@@ -1,13 +1,10 @@
+import { ReferralCard } from "@/components/referral-card";
 import { ChartToolbar } from "./chart-toolbar";
 import { MetricsOverview, type Metric } from "./metrics-overview";
-import { VolumeSummary } from "./volume-summary";
 import { StreamedChart } from "./sweem/streamed-chart";
 
 export function AnalyticsSection({
   metrics,
-  volumeTitle,
-  volumeRows,
-  volumeNote,
 }: {
   metrics?: Metric[];
   volumeTitle?: string;
@@ -26,7 +23,7 @@ export function AnalyticsSection({
         </div>
         <StreamedChart />
       </div>
-      <VolumeSummary title={volumeTitle} rows={volumeRows} note={volumeNote} />
+      <ReferralCard className="h-full w-full" />
     </section>
   );
 }
