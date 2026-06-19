@@ -8,7 +8,7 @@ export function Logo({ dark = false }: { dark?: boolean }) {
         <path d="M21 7 L12 12 L12 22 L21 17 Z" fill={mark} fillOpacity="0.5" />
       </svg>
       <span className={`text-[18px] font-semibold tracking-tight ${dark ? "text-white" : "text-[#101828]"}`}>
-        Finexa
+        Sweem
       </span>
     </div>
   );

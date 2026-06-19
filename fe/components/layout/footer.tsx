@@ -44,16 +44,16 @@ function LinkedInIcon() {
 
 const links = [
   {
-    title: "Products",
-    items: ["Personal Finance", "Business Accounts", "Virtual Cards", "International Payments", "Developer APIs"],
+    title: "Product",
+    items: ["Streaming Payroll", "Employee Vaults", "Yield Routing", "Multi-Token Pools", "Developer API"],
   },
   {
     title: "Features",
-    items: ["Spending Analytics", "Real-Time Alerts", "Multi-Currency Wallet", "Smart Savings Goals", "Credit Insights"],
+    items: ["Real-Time Streams", "Idle-Cash Yield", "Live Runway", "Pause & Resume", "Delegated Roles"],
   },
   {
     title: "Resources",
-    items: ["Getting Started", "Help Center", "Product Updates", "Guides & Tutorials", "Community"],
+    items: ["Getting Started", "Docs", "Protocol Overview", "Guides", "Community"],
   },
 ];
 
@@ -66,13 +66,14 @@ const socials = [
 
 export function Footer() {
   return (
-    <footer className="bg-white px-24 pt-16 pb-8">
+    <footer className="bg-white px-6 pb-8 pt-16 md:px-12 lg:px-24">
+      <div className="mx-auto w-full max-w-7xl">
       {/* top row */}
-      <div className="grid grid-cols-[1fr_1.1fr] gap-20 pb-12 border-b border-[#eaecf0]">
+      <div className="grid gap-12 border-b border-border pb-12 md:grid-cols-[1fr_1.1fr] md:gap-20">
         {/* left */}
         <div>
           <h2 className="text-[33px] font-medium leading-[1.1] tracking-[-0.02em] text-[#101828] md:text-[42px]">
-            Let&apos;s Build Your<br />Financial Future.
+            Let&apos;s Stream Your<br />Payroll.
           </h2>
           {/* email subscribe */}
           <div className="mt-7 flex max-w-[380px] items-center rounded-full bg-white py-1.5 pl-1.5 pr-1.5 ring-1 ring-[#e5e7eb]">
@@ -100,7 +101,7 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-x-8 gap-y-8 pt-2">
           <div>
             <h4 className="text-[14px] font-semibold text-[#101828]">Location</h4>
-            <p className="mt-2 text-[14px] leading-[1.7] text-[#667085]">Fintech HQ Innovation Park,<br />Global Financial District</p>
+            <p className="mt-2 text-[14px] leading-[1.7] text-[#667085]">Built on Sui,<br />Onchain &amp; Worldwide</p>
           </div>
           <div>
             <h4 className="text-[14px] font-semibold text-[#101828]">Call Us</h4>
@@ -108,7 +109,7 @@ export function Footer() {
           </div>
           <div>
             <h4 className="text-[14px] font-semibold text-[#101828]">Email</h4>
-            <p className="mt-2 text-[14px] text-[#667085]">hello@plantora.earth</p>
+            <p className="mt-2 text-[14px] text-[#667085]">hello@sweem.xyz</p>
           </div>
           <div>
             <h4 className="text-[14px] font-semibold text-[#101828]">Working Hours</h4>
@@ -118,7 +119,7 @@ export function Footer() {
       </div>
 
       {/* links row */}
-      <div className="grid grid-cols-4 gap-8 py-12 border-b border-[#eaecf0]">
+      <div className="grid grid-cols-2 gap-8 border-b border-border py-12 md:grid-cols-4">
         {links.map(({ title, items }) => (
           <div key={title}>
             <h4 className="text-[13px] font-semibold text-[#101828]">{title}</h4>
@@ -151,12 +152,13 @@ export function Footer() {
       </div>
 
       {/* bottom bar */}
-      <div className="flex items-center justify-between pt-7 text-[15px] text-[#667085]">
-        <span>© 2026 Finora. All rights reserved.</span>
+      <div className="flex flex-col items-start gap-4 pt-7 text-[14px] text-text-secondary sm:flex-row sm:items-center sm:justify-between">
+        <span>© 2026 Sweem. All rights reserved.</span>
         <div className="flex items-center gap-6">
-          <a href="#" className="hover:text-[#667085]">Terms of Service</a>
-          <a href="#" className="hover:text-[#667085]">Privacy Policy</a>
+          <a href="#" className="hover:text-text-primary">Terms of Service</a>
+          <a href="#" className="hover:text-text-primary">Privacy Policy</a>
         </div>
+      </div>
       </div>
     </footer>
   );
