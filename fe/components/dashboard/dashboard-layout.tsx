@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BackgroundRippleEffect } from "@/components/ui/background-ripple-effect";
 import { Navbar } from "./navbar";
 import { Sidebar } from "./sidebar";
 
@@ -17,7 +18,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           collapsed={collapsed}
           onToggle={() => setCollapsed((c) => !c)}
         />
-        <main className="dashboard-content-scroll">{children}</main>
+        <main className="dashboard-content-scroll">
+          <BackgroundRippleEffect />
+          <div className="dashboard-content-layer">{children}</div>
+        </main>
       </div>
     </div>
   );
