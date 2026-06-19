@@ -3,6 +3,26 @@
 :root {
   --background: #ffffff;
   --foreground: #101828;
+
+  /* shadcn tokens — mapped onto the Sweem brand palette (light only) */
+  --card: #ffffff;
+  --card-foreground: #101828;
+  --popover: #ffffff;
+  --popover-foreground: #101828;
+  --primary: #1c6fd0;
+  --primary-foreground: #ffffff;
+  --secondary: #f7f8fa;
+  --secondary-foreground: #101828;
+  --muted: #f7f8fa;
+  --muted-foreground: #667085;
+  --accent: #eef4fb;
+  --accent-foreground: #1c6fd0;
+  --destructive: #e5484d;
+  --destructive-foreground: #ffffff;
+  --border: #eaecf0;
+  --input: #eaecf0;
+  --ring: #1c6fd0;
+  --radius: 0.75rem;
 }
 
 @theme inline {
@@ -18,6 +38,29 @@
   --color-text-muted: #98a2b3;
   --color-border: #eaecf0;
   --color-surface: #f7f8fa;
+
+  /* shadcn token mappings */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 * {
@@ -35,6 +78,23 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-poppins), sans-serif;
+  font-weight: 300;
+}
+
+/* Brand type weights: Poppins medium for emphasis, light everywhere else.
+   Unlayered so they override Tailwind's font-weight utilities without !important. */
+.font-semibold,
+.font-bold,
+.font-extrabold,
+.font-black {
+  font-weight: 500;
+}
+
+.font-normal,
+.font-light,
+.font-thin,
+.font-extralight {
+  font-weight: 300;
 }
 
 button,
@@ -2209,7 +2269,7 @@ a.brand-nav-heading {
 /* ─── Hero ─────────────────────────────────────────────── */
 
 .hero-bg {
-  background: #3d8bd4;
+  background: url("/bg1.png") center / cover no-repeat, #3d8bd4;
 }
 
 .hero-copy {
@@ -4186,4 +4246,46 @@ a.dx-todo-row:hover {
 .dx-grid {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* ─── Aceternity infinite-moving-cards (marquee) ─────────── */
+
+@keyframes marquee-scroll {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee-scroll var(--marquee-duration, 40s) var(--marquee-direction, forwards)
+    linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+  }
+}
+
+/* ─── Core Service — live stream meter bars ──────────────── */
+
+@keyframes stream-bar {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+.stream-bar {
+  transform-origin: bottom;
+  animation: stream-bar 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-bar {
+    animation: none;
+    transform: scaleY(0.6);
+  }
 }
