@@ -4,6 +4,26 @@ import { useState } from "react";
 import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+} from "recharts";
+import { Coins, Receipt, Wallet } from "lucide-react";
+
+import {
+  CardLabel,
+  IconChip,
+  MoneyValue,
+  SweemCard,
+} from "@/components/sweem-ui/primitives";
+import { useMounted } from "@/components/sweem-ui/use-mounted";
 
 import {
   MONTH_MS,
@@ -12,6 +32,7 @@ import {
   fromRaw,
   weeklyCommitRaw,
 } from "@/lib/sweem";
+import type { Employee } from "@/lib/api";
 import {
   createPoolTx,
   depositTx,
@@ -29,6 +50,241 @@ import { LiveTicker } from "./live-ticker";
 import { ActionButton, Modal, ProtocolRow, ConnectGate } from "./ui";
 import { monthlyRate, shortAddr } from "./helpers";
 
+const ALLOC = [
+  { key: "idle", label: "Idle (liquid)", color: "var(--sw-text)" },
+  { key: "navi", label: "Navi", color: "var(--sw-mint)" },
+  { key: "scallop", label: "Scallop", color: "var(--sw-lavender)" },
+] as const;
+
+function ChartTooltip({
+  active,
+  payload,
+  suffix = "",
+}: {
+  active?: boolean;
+  payload?: { name?: string; payload: { name?: string; label?: string; value: number } }[];
+  suffix?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div className="rounded-xl border border-[var(--sw-border-strong)] bg-[#1c1c20] px-3 py-2 shadow-xl">
+      <p className="text-[10px] uppercase tracking-wide text-[var(--sw-text-dim)]">
+        {p.label ?? p.name}
+      </p>
+      <p className="text-[13px] font-semibold text-white">
+        ${p.value.toFixed(2)}
+        {suffix}
+      </p>
+    </div>
+  );
+}
+
+// Donut of where the pool sits (idle vs each lending protocol), total in the hole.
+function PoolBalanceCard({
+  total,
+  idle,
+  navi,
+  scallop,
+}: {
+  total: number;
+  idle: number;
+  navi: number;
+  scallop: number;
+}) {
+  const mounted = useMounted();
+  const values: Record<string, number> = { idle, navi, scallop };
+  const slices = ALLOC.map((s) => ({ label: s.label, value: values[s.key], color: s.color })).filter(
+    (s) => s.value > 0,
+  );
+  const data = slices.length ? slices : [{ label: "Empty", value: 1, color: "var(--sw-border)" }];
+
+  return (
+    <SweemCard className="flex flex-col">
+      <div className="flex items-center gap-3">
+        <IconChip>
+          <Wallet className="size-[18px]" strokeWidth={2} />
+        </IconChip>
+        <CardLabel className="text-[15px] text-[var(--sw-text)]">Total in Pool</CardLabel>
+      </div>
+
+      <div className="relative mt-3 h-[168px] w-full">
+        {mounted && (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                dataKey="value"
+                nameKey="label"
+                cx="50%"
+                cy="50%"
+                innerRadius={54}
+                outerRadius={78}
+                paddingAngle={slices.length > 1 ? 2 : 0}
+                stroke="none"
+                animationDuration={800}
+              >
+                {data.map((d, i) => (
+                  <Cell key={i} fill={d.color} />
+                ))}
+              </Pie>
+              {slices.length > 0 && <Tooltip content={<ChartTooltip />} />}
+            </PieChart>
+          </ResponsiveContainer>
+        )}
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <MoneyValue value={total} className="text-[24px] leading-none" />
+          <span className="mt-1 text-[11px] text-[var(--sw-text-dim)]">in pool</span>
+        </div>
+      </div>
+
+      <ul className="mt-4 flex flex-col gap-2.5">
+        {ALLOC.map((s) => (
+          <li key={s.key} className="flex items-center justify-between">
+            <span className="flex items-center gap-2.5">
+              <span className="size-2.5 rounded-full" style={{ background: s.color }} />
+              <span className="text-[13px] text-[var(--sw-text-muted)]">{s.label}</span>
+            </span>
+            <span className="text-[13px] font-semibold tabular-nums text-[var(--sw-text)]">
+              ${values[s.key].toFixed(2)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </SweemCard>
+  );
+}
+
+// Where idle funds are deployed: one progress bar per protocol, sized vs the pool.
+function InvestedCard({
+  total,
+  idle,
+  navi,
+  scallop,
+}: {
+  total: number;
+  idle: number;
+  navi: number;
+  scallop: number;
+}) {
+  const invested = navi + scallop;
+  const sum = total > 0 ? total : 1;
+  const rows = [
+    { label: "Navi", value: navi, color: "var(--sw-mint)" },
+    { label: "Scallop", value: scallop, color: "var(--sw-lavender)" },
+  ];
+
+  return (
+    <SweemCard className="flex flex-col">
+      <div className="flex items-center gap-3">
+        <IconChip>
+          <Coins className="size-[18px]" strokeWidth={2} />
+        </IconChip>
+        <CardLabel className="text-[15px] text-[var(--sw-text)]">Invested in protocols</CardLabel>
+      </div>
+      <MoneyValue value={invested} className="mt-3 text-[26px] leading-none" />
+      <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">
+        Idle funds earning yield · ${idle.toFixed(2)} still liquid
+      </p>
+
+      <div className="mt-5 flex flex-1 flex-col justify-center gap-4">
+        {rows.map((r) => {
+          const pct = (r.value / sum) * 100;
+          return (
+            <div key={r.label}>
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="flex items-center gap-2.5">
+                  <span className="size-2.5 rounded-full" style={{ background: r.color }} />
+                  <span className="text-[var(--sw-text-muted)]">{r.label}</span>
+                </span>
+                <span className="font-semibold tabular-nums text-[var(--sw-text)]">
+                  ${r.value.toFixed(2)}
+                  <span className="ml-1.5 text-[11.5px] font-medium text-[var(--sw-text-dim)]">
+                    {pct.toFixed(0)}%
+                  </span>
+                </span>
+              </div>
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[var(--sw-card-inset)]">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: r.color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(pct, 100)}%` }}
+                  transition={{ type: "spring", stiffness: 160, damping: 26 }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </SweemCard>
+  );
+}
+
+// Per-employee monthly bars + the weekly coverage floor as context.
+function MonthlyPayrollCard({
+  employees,
+  totalMonthly,
+  floor,
+}: {
+  employees: Employee[];
+  totalMonthly: number;
+  floor: number;
+}) {
+  const mounted = useMounted();
+  const data = employees
+    .map((e) => ({ name: e.alias, label: e.alias, value: monthlyRate(e) }))
+    .filter((d) => d.value > 0)
+    .slice(0, 12);
+
+  return (
+    <SweemCard className="flex flex-col">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <IconChip>
+            <Receipt className="size-[18px]" strokeWidth={2} />
+          </IconChip>
+          <CardLabel className="text-[15px] text-[var(--sw-text)]">Monthly Payroll</CardLabel>
+        </div>
+        <MoneyValue value={totalMonthly} className="text-[20px] leading-none" />
+      </div>
+
+      <div className="mt-3 h-[168px] w-full flex-1">
+        {data.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-[13px] text-[var(--sw-text-dim)]">
+            No active streams yet.
+          </div>
+        ) : mounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 4, bottom: 0, left: 4 }}>
+              <XAxis
+                dataKey="name"
+                axisLine={false}
+                tickLine={false}
+                interval={0}
+                tick={{ fill: "var(--sw-text-dim)", fontSize: 11 }}
+                tickMargin={10}
+              />
+              <Tooltip
+                cursor={{ fill: "rgba(255,255,255,0.04)", radius: 8 }}
+                content={<ChartTooltip suffix="/mo" />}
+              />
+              <Bar dataKey="value" radius={[8, 8, 8, 8]} maxBarSize={26} animationDuration={900}>
+                {data.map((_, i) => (
+                  <Cell key={i} fill={i % 2 === 0 ? "var(--sw-mint)" : "var(--sw-lavender)"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : null}
+      </div>
+      <p className="mt-3 text-[12.5px] text-[var(--sw-text-dim)]">
+        Coverage floor · {floor.toFixed(2)} USDC/wk reserved
+      </p>
+    </SweemCard>
+  );
+}
+
 export function PayrollScreen() {
   const {
     wallet,
@@ -41,6 +297,9 @@ export function PayrollScreen() {
     poolState,
     funded,
     idleUsdc,
+    naviUsdc,
+    scallopUsdc,
+    totalInPool,
     floorUsdc,
     anchorAt,
   } = useOrgPool();
@@ -193,6 +452,41 @@ export function PayrollScreen() {
     }
   }
 
+  // ── start a stream for an employee added after the pool was funded ──────────
+  // Reuses `deposit`, which both tops up the pool and creates the stream row
+  // (emitting StreamCreated). We deposit one month of this employee's salary so
+  // the pool stays above its coverage floor with the new commitment added.
+  async function handleStartStream(employee: Employee) {
+    if (!onChainPoolId) return;
+    const rate = monthlyRate(employee);
+    if (rate <= 0) return;
+    setBusy(true);
+    const t = toast.loading(`Starting stream · funding ${rate.toFixed(2)} USDC…`);
+    try {
+      const roster = [
+        {
+          address: employee.walletAddress,
+          rateRaw: toRaw(rate),
+          periodMs: BigInt(MONTH_MS),
+        },
+      ];
+      const r = await signAndExecute({
+        transaction: depositTx(onChainPoolId, toRaw(rate), roster),
+      });
+      await client.waitForTransaction({
+        digest: r.digest,
+        options: { showEffects: true, showObjectChanges: true },
+      });
+      await qc.invalidateQueries({ queryKey: ["pools", wallet] });
+      await poolState.refetch();
+      toast.success(`Stream started for ${employee.alias}`, { id: t });
+    } catch (e) {
+      toast.error((e as Error).message, { id: t });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // ── pause / resume a single employee's stream ───────────────────────────────
   async function handleToggleStream(employee: string, paused: boolean) {
     if (!onChainPoolId) return;
@@ -249,55 +543,49 @@ export function PayrollScreen() {
           : "Fund the pool to start streaming salaries per millisecond."
       }
     >
-      {/* control card */}
-      <div className="sweem-card mt-5 mb-5">
-        <div className="sweem-card-head">
+      {/* header: status + primary action */}
+      <div className="mt-5 mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span
+            className={
+              funded
+                ? "size-2 rounded-full bg-[var(--sw-mint)]"
+                : "size-2 rounded-full bg-[var(--sw-text-dim)]"
+            }
+          />
           <div>
-            <p className="sweem-card-title">
+            <p className="text-[15px] font-semibold text-[var(--sw-text)]">
               {funded ? "Streaming live" : "Ready to fund"}
             </p>
-            <p className="sweem-card-sub">
+            <p className="text-[12.5px] text-[var(--sw-text-muted)]">
               {roster.length} employee(s) · {totalMonthly.toFixed(2)} USDC / month
             </p>
           </div>
-          {funded ? (
-            <ActionButton
-              variant="primary"
-              onClick={openInvestMore}
-              disabled={busy || idleUsdc <= floorUsdc}
-            >
-              Invest idle funds
-            </ActionButton>
-          ) : (
-            <ActionButton
-              variant="primary"
-              onClick={handleFundAndStart}
-              disabled={busy || roster.length === 0}
-            >
-              Fund &amp; start
-            </ActionButton>
-          )}
         </div>
-        <div className="sweem-metric-row">
-          <div>
-            <div className="dashboard-metric-label">Monthly payroll</div>
-            <div className="dashboard-metric-value">
-              {totalMonthly.toFixed(2)} <span className="sweem-metric-unit">USDC</span>
-            </div>
-          </div>
-          <div>
-            <div className="dashboard-metric-label">Idle (liquid)</div>
-            <div className="dashboard-metric-value">
-              {idleUsdc.toFixed(2)} <span className="sweem-metric-unit">USDC</span>
-            </div>
-          </div>
-          <div>
-            <div className="dashboard-metric-label">Coverage floor</div>
-            <div className="dashboard-metric-value">
-              {floorUsdc.toFixed(2)} <span className="sweem-metric-unit">USDC/wk</span>
-            </div>
-          </div>
-        </div>
+        {funded ? (
+          <ActionButton
+            variant="primary"
+            onClick={openInvestMore}
+            disabled={busy || idleUsdc <= floorUsdc}
+          >
+            Invest idle funds
+          </ActionButton>
+        ) : (
+          <ActionButton
+            variant="primary"
+            onClick={handleFundAndStart}
+            disabled={busy || roster.length === 0}
+          >
+            Fund &amp; start
+          </ActionButton>
+        )}
+      </div>
+
+      {/* pool / protocol breakdown cards */}
+      <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <PoolBalanceCard total={totalInPool} idle={idleUsdc} navi={naviUsdc} scallop={scallopUsdc} />
+        <InvestedCard total={totalInPool} idle={idleUsdc} navi={naviUsdc} scallop={scallopUsdc} />
+        <MonthlyPayrollCard employees={roster} totalMonthly={totalMonthly} floor={floorUsdc} />
       </div>
 
       {/* streams table */}
@@ -319,16 +607,20 @@ export function PayrollScreen() {
             <tbody>
               {roster.map((e) => {
                 const st = statusByEmployee[e.walletAddress];
+                // A stream row only exists on-chain once this employee's stream
+                // was actually started. Someone added mid-stream has no row yet —
+                // so they're not streaming, regardless of the pool-level funded flag.
+                const hasStream = !!st;
                 const paused = !!st?.paused;
                 const stopped = !!st?.stopped;
-                const status = !funded
+                const status = !funded || !hasStream
                   ? "Pending"
                   : stopped
                     ? "Stopped"
                     : paused
                       ? "Paused"
                       : "Streaming";
-                const badgeClass = !funded
+                const badgeClass = !funded || !hasStream
                   ? "sweem-badge-idle"
                   : stopped
                     ? "sweem-badge-stopped"
@@ -349,11 +641,19 @@ export function PayrollScreen() {
                         rateRaw={toRaw(monthlyRate(e))}
                         periodMs={BigInt(MONTH_MS)}
                         anchorAt={anchorAt}
-                        active={funded && !paused && !stopped}
+                        active={funded && hasStream && !paused && !stopped}
                       />
                     </td>
                     <td>
-                      {funded && !stopped ? (
+                      {funded && !hasStream ? (
+                        <ActionButton
+                          variant="primary"
+                          onClick={() => handleStartStream(e)}
+                          disabled={busy}
+                        >
+                          Start stream
+                        </ActionButton>
+                      ) : funded && hasStream && !stopped ? (
                         <ActionButton
                           onClick={() => handleToggleStream(e.walletAddress, paused)}
                           disabled={busy}

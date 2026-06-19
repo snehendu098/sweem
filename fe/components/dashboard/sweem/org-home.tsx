@@ -71,7 +71,7 @@ export function OrgHome() {
   const showCreateOrg = !!wallet && !api.orgQuery.isLoading && !org;
 
   return (
-    <div className="mx-auto w-full max-w-[1320px] px-4 py-5 sm:px-6 sm:py-6">
+    <div className="dashboard-content">
       <div className="mb-5 flex items-end justify-between">
         <div>
           <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">
@@ -101,7 +101,7 @@ export function OrgHome() {
             value={rosterCount}
             caption={`$${totalMonthly.toFixed(2)} / month committed`}
           />
-          <CompositionCard idle={idleUsdc} navi={naviUsdc} scallop={scallopUsdc} total={totalInPool} />
+          <CompositionCard idle={idleUsdc} navi={naviUsdc} scallop={scallopUsdc} total={totalInPool} className="grow" />
         </Column>
 
         {/* Center */}
@@ -113,14 +113,20 @@ export function OrgHome() {
             anchorAt={anchorAt}
             monthly={totalMonthly}
           />
-          <PayrollAnalyticsCard employees={employees} totalMonthly={totalMonthly} />
+          <PayrollAnalyticsCard employees={employees} totalMonthly={totalMonthly} className="grow" />
         </Column>
 
         {/* Right */}
         <Column className="lg:col-span-4">
           <RecentActivityCard activity={activityQuery.data} loading={activityQuery.isLoading} />
           <FundPayrollCTA />
-          <YieldCard earning={earningYield} yields={api.yieldsQuery.data?.quotes} />
+          <YieldCard
+            earning={earningYield}
+            naviAmount={naviUsdc}
+            scallopAmount={scallopUsdc}
+            yields={api.yieldsQuery.data?.quotes}
+            className="grow"
+          />
         </Column>
       </DashboardGrid>
     </div>
@@ -273,17 +279,19 @@ function CompositionCard({
   navi,
   scallop,
   total,
+  className,
 }: {
   idle: number;
   navi: number;
   scallop: number;
   total: number;
+  className?: string;
 }) {
   const values: Record<string, number> = { idle, navi, scallop };
   const sum = total > 0 ? total : 1;
 
   return (
-    <SweemCard className="flex flex-col">
+    <SweemCard className={`flex flex-col ${className ?? ""}`}>
       <CardLabel className="text-[15px] text-[var(--sw-text)]">Pool Composition</CardLabel>
       <div className="mt-4 flex h-[26px] items-stretch gap-1.5">
         {COMPOSITION.map((seg, i) => (
@@ -297,7 +305,7 @@ function CompositionCard({
           />
         ))}
       </div>
-      <ul className="mt-5 flex flex-col gap-3">
+      <ul className="mt-5 flex flex-1 flex-col justify-between gap-3">
         {COMPOSITION.map((seg) => (
           <li key={seg.key} className="flex items-center justify-between">
             <span className="flex items-center gap-2.5">
@@ -379,12 +387,17 @@ function StreamedHeroCard({
 function PayrollAnalyticsCard({
   employees,
   totalMonthly,
+  className,
 }: {
   employees: Employee[];
   totalMonthly: number;
+  className?: string;
 }) {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   const data = employees
     .map((e) => ({ name: e.alias, value: monthlyRate(e) }))
@@ -392,7 +405,7 @@ function PayrollAnalyticsCard({
     .slice(0, 12);
 
   return (
-    <SweemCard className="flex flex-col">
+    <SweemCard className={`flex flex-col ${className ?? ""}`}>
       <div className="flex items-start justify-between">
         <div>
           <CardLabel className="text-[15px] text-[var(--sw-text)]">Monthly Payroll</CardLabel>
@@ -403,7 +416,7 @@ function PayrollAnalyticsCard({
         </span>
       </div>
 
-      <div className="mt-4 h-[190px] w-full">
+      <div className="mt-4 h-[190px] w-full flex-1">
         {data.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[13px] text-[var(--sw-text-dim)]">
             Add employees to see the payroll breakdown.
@@ -535,12 +548,24 @@ function FundPayrollCTA() {
   );
 }
 
-function YieldCard({ earning, yields }: { earning: number; yields?: YieldQuote[] }) {
+function YieldCard({
+  earning,
+  naviAmount,
+  scallopAmount,
+  yields,
+  className,
+}: {
+  earning: number;
+  naviAmount: number;
+  scallopAmount: number;
+  yields?: YieldQuote[];
+  className?: string;
+}) {
   const navi = yields?.find((y) => y.protocol === "NAVI")?.apy;
   const scallop = yields?.find((y) => y.protocol === "SCALLOP")?.apy;
 
   return (
-    <SweemCard className="flex flex-col">
+    <SweemCard className={`flex flex-col ${className ?? ""}`}>
       <div className="flex items-center justify-between">
         <CardLabel className="text-[15px] text-[var(--sw-text)]">Earning Yield</CardLabel>
         <Receipt className="size-4 text-[var(--sw-text-dim)]" strokeWidth={2} />
@@ -548,25 +573,40 @@ function YieldCard({ earning, yields }: { earning: number; yields?: YieldQuote[]
       <MoneyValue value={earning} className="mt-2 text-[26px] leading-none" />
       <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">Idle funds invested in lending protocols</p>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <YieldChip name="Navi" apy={navi} accent="var(--sw-mint)" />
-        <YieldChip name="Scallop" apy={scallop} accent="var(--sw-lavender)" />
+      <div className="mt-5 grid flex-1 grid-cols-2 gap-3">
+        <YieldChip name="Navi" amount={naviAmount} apy={navi} accent="var(--sw-mint)" />
+        <YieldChip name="Scallop" amount={scallopAmount} apy={scallop} accent="var(--sw-lavender)" />
       </div>
     </SweemCard>
   );
 }
 
-function YieldChip({ name, apy, accent }: { name: string; apy?: number; accent: string }) {
+function YieldChip({
+  name,
+  amount,
+  apy,
+  accent,
+}: {
+  name: string;
+  amount: number;
+  apy?: number;
+  accent: string;
+}) {
   return (
-    <div className="rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] p-3">
-      <div className="flex items-center gap-2">
-        <span className="size-2 rounded-full" style={{ background: accent }} />
-        <span className="text-[12.5px] text-[var(--sw-text-muted)]">{name}</span>
+    <div className="flex flex-col rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2">
+          <span className="size-2 rounded-full" style={{ background: accent }} />
+          <span className="text-[12.5px] text-[var(--sw-text-muted)]">{name}</span>
+        </span>
+        <span className="text-[11px] font-semibold tabular-nums text-[var(--sw-text-muted)]">
+          {apy == null ? "—" : `${apy.toFixed(2)}%`}
+        </span>
       </div>
-      <p className="mt-1.5 text-[18px] font-semibold tabular-nums text-[var(--sw-text)]">
-        {apy == null ? "—" : `${apy.toFixed(2)}%`}
+      <p className="mt-2 text-[18px] font-semibold tabular-nums text-[var(--sw-text)]">
+        ${amount.toFixed(2)}
       </p>
-      <p className="text-[10.5px] text-[var(--sw-text-dim)]">Live APR</p>
+      <p className="text-[10.5px] text-[var(--sw-text-dim)]">Invested · {apy == null ? "—" : `${apy.toFixed(2)}% APR`}</p>
     </div>
   );
 }

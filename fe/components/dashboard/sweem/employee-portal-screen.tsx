@@ -8,7 +8,27 @@ import {
 } from "@mysten/dapp-kit";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
+import {
+  Area,
+  AreaChart,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { Coins, TrendingUp, Wallet } from "lucide-react";
 
+import {
+  CardLabel,
+  IconChip,
+  MoneyValue,
+  SweemCard,
+} from "@/components/sweem-ui/primitives";
+import { useMounted } from "@/components/sweem-ui/use-mounted";
 import { useSweemApi } from "@/lib/api";
 import { fromRaw, toRaw, minClaimRaw, NAVI_MIN_INVEST_USDC } from "@/lib/sweem";
 import {
@@ -34,8 +54,7 @@ import {
 import { DashboardPageShell } from "@/components/dashboard/dashboard-screen";
 import { Icon } from "@/components/dashboard/icons";
 import { LiveTicker } from "./live-ticker";
-import { StreamFlow } from "./stream-flow";
-import { Stat, ActionButton, Modal, ProtocolRow, ConnectGate } from "./ui";
+import { ActionButton, Modal, ProtocolRow, ConnectGate } from "./ui";
 import { shortAddr } from "./helpers";
 
 interface PoolView {
@@ -180,40 +199,290 @@ function StreamCard({
         <span className={`sweem-badge ${badgeClass}`}>{status}</span>
       </div>
 
-      {/* React-Flow money-flow graph: org pool → you → wallet/vault */}
-      <StreamFlow
-        orgName={orgName ?? "Org Pool"}
-        poolShort={shortAddr(poolId)}
-        live={live}
-        status={status}
-      />
+      <div className="mt-2 flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <p className="sweem-stat-label">Claimable now</p>
+          <p className="sweem-mono text-3xl font-semibold mt-1">
+            <LiveTicker
+              baseRaw={baseRaw}
+              rateRaw={stream.rateAmountRaw}
+              periodMs={stream.ratePeriodMs}
+              anchorAt={polledAt}
+              active={live}
+            />{" "}
+            <span className="text-base text-[color:var(--dash-faint)]">USDC</span>
+          </p>
+          {!meetsMin && live && (
+            <p className="sweem-hint mt-1.5">
+              Withdraw unlocks in ~{hoursToMin.toFixed(1)}h (min-claim floor)
+            </p>
+          )}
+        </div>
 
-      <p className="sweem-stat-label">Claimable now</p>
-      <p className="sweem-mono text-3xl font-semibold mt-1">
-        <LiveTicker
-          baseRaw={baseRaw}
-          rateRaw={stream.rateAmountRaw}
-          periodMs={stream.ratePeriodMs}
-          anchorAt={polledAt}
-          active={live}
-        />{" "}
-        <span className="text-base text-[color:var(--dash-faint)]">USDC</span>
-      </p>
-      {!meetsMin && live && (
-        <p className="sweem-hint mt-1">
-          Withdraw unlocks in ~{hoursToMin.toFixed(1)}h (min-claim floor)
-        </p>
-      )}
-
-      <div className="sweem-actions">
-        <ActionButton variant="primary" onClick={handleWithdrawToWallet} disabled={busy || !meetsMin}>
-          <Icon name="user" size={15} strokeWidth={2.1} /> Withdraw to wallet
-        </ActionButton>
-        <ActionButton onClick={handleWithdrawToVault} disabled={busy || !meetsMin}>
-          <Icon name="bank" size={15} strokeWidth={2} /> Withdraw to vault
-        </ActionButton>
+        <div className="sweem-actions">
+          <ActionButton variant="primary" onClick={handleWithdrawToWallet} disabled={busy || !meetsMin}>
+            <Icon name="user" size={15} strokeWidth={2.1} /> Withdraw to wallet
+          </ActionButton>
+          <ActionButton onClick={handleWithdrawToVault} disabled={busy || !meetsMin}>
+            <Icon name="bank" size={15} strokeWidth={2} /> Withdraw to vault
+          </ActionButton>
+        </div>
       </div>
     </div>
+  );
+}
+
+/* ── Vault cards ──────────────────────────────────────────────────────── */
+
+const VAULT_ALLOC = [
+  { key: "idle", label: "Idle (USDC)", color: "var(--sw-text)" },
+  { key: "navi", label: "Navi", color: "var(--sw-mint)" },
+  { key: "scallop", label: "Scallop", color: "var(--sw-lavender)" },
+] as const;
+
+interface VaultParts {
+  idle: number;
+  navi: number;
+  scallop: number;
+  naviApy?: number;
+  scallopApy?: number;
+}
+
+// Compound the invested legs forward; idle stays flat. One point per month.
+function projectGrowth({ idle, navi, scallop, naviApy = 0, scallopApy = 0 }: VaultParts, months = 12) {
+  return Array.from({ length: months + 1 }, (_, m) => {
+    const naviV = navi * Math.pow(1 + naviApy / 100, m / 12);
+    const scallopV = scallop * Math.pow(1 + scallopApy / 100, m / 12);
+    return { month: m, label: m === 0 ? "now" : `${m}mo`, value: idle + naviV + scallopV };
+  });
+}
+
+function VaultTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: { payload: { label?: string; value: number } }[];
+}) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div className="rounded-xl border border-[var(--sw-border-strong)] bg-[#1c1c20] px-3 py-2 shadow-xl">
+      <p className="text-[10px] uppercase tracking-wide text-[var(--sw-text-dim)]">{p.label}</p>
+      <p className="text-[13px] font-semibold text-white">${p.value.toFixed(2)}</p>
+    </div>
+  );
+}
+
+function VaultBalanceCard({ idle, navi, scallop }: VaultParts) {
+  const mounted = useMounted();
+  const total = idle + navi + scallop;
+  const values: Record<string, number> = { idle, navi, scallop };
+  const slices = VAULT_ALLOC.map((s) => ({ label: s.label, value: values[s.key], color: s.color })).filter(
+    (s) => s.value > 0,
+  );
+  const data = slices.length ? slices : [{ label: "Empty", value: 1, color: "var(--sw-border)" }];
+
+  return (
+    <SweemCard className="flex flex-col">
+      <div className="flex items-center gap-3">
+        <IconChip>
+          <Wallet className="size-[18px]" strokeWidth={2} />
+        </IconChip>
+        <CardLabel className="text-[15px] text-[var(--sw-text)]">Vault Balance</CardLabel>
+      </div>
+
+      <div className="relative mt-3 h-[168px] w-full">
+        {mounted && (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                dataKey="value"
+                nameKey="label"
+                cx="50%"
+                cy="50%"
+                innerRadius={54}
+                outerRadius={78}
+                paddingAngle={slices.length > 1 ? 2 : 0}
+                stroke="none"
+                animationDuration={800}
+              >
+                {data.map((d, i) => (
+                  <Cell key={i} fill={d.color} />
+                ))}
+              </Pie>
+              {slices.length > 0 && <Tooltip content={<VaultTooltip />} />}
+            </PieChart>
+          </ResponsiveContainer>
+        )}
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <MoneyValue value={total} className="text-[24px] leading-none" />
+          <span className="mt-1 text-[11px] text-[var(--sw-text-dim)]">total value</span>
+        </div>
+      </div>
+
+      <ul className="mt-4 flex flex-col gap-2.5">
+        {VAULT_ALLOC.map((s) => (
+          <li key={s.key} className="flex items-center justify-between">
+            <span className="flex items-center gap-2.5">
+              <span className="size-2.5 rounded-full" style={{ background: s.color }} />
+              <span className="text-[13px] text-[var(--sw-text-muted)]">{s.label}</span>
+            </span>
+            <span className="text-[13px] font-semibold tabular-nums text-[var(--sw-text)]">
+              ${values[s.key].toFixed(2)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </SweemCard>
+  );
+}
+
+function VaultPositionsCard({ idle, navi, scallop, naviApy, scallopApy }: VaultParts) {
+  const invested = navi + scallop;
+  const sum = idle + navi + scallop || 1;
+  const rows = [
+    { label: "Navi", value: navi, apy: naviApy, color: "var(--sw-mint)" },
+    { label: "Scallop", value: scallop, apy: scallopApy, color: "var(--sw-lavender)" },
+  ];
+
+  return (
+    <SweemCard className="flex flex-col">
+      <div className="flex items-center gap-3">
+        <IconChip>
+          <Coins className="size-[18px]" strokeWidth={2} />
+        </IconChip>
+        <CardLabel className="text-[15px] text-[var(--sw-text)]">Positions</CardLabel>
+      </div>
+      <MoneyValue value={invested} className="mt-3 text-[26px] leading-none" />
+      <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">
+        Earning yield · ${idle.toFixed(2)} idle
+      </p>
+
+      <div className="mt-5 flex flex-1 flex-col justify-center gap-4">
+        {rows.map((r) => {
+          const pct = (r.value / sum) * 100;
+          const annual = r.apy != null ? (r.value * r.apy) / 100 : null;
+          return (
+            <div key={r.label}>
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="flex items-center gap-2.5">
+                  <span className="size-2.5 rounded-full" style={{ background: r.color }} />
+                  <span className="text-[var(--sw-text-muted)]">{r.label}</span>
+                  <span className="text-[11px] font-medium text-[var(--sw-text-dim)]">
+                    {r.apy == null ? "" : `${r.apy.toFixed(2)}% APR`}
+                  </span>
+                </span>
+                <span className="font-semibold tabular-nums text-[var(--sw-text)]">
+                  ${r.value.toFixed(2)}
+                </span>
+              </div>
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[var(--sw-card-inset)]">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: r.color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(pct, 100)}%` }}
+                  transition={{ type: "spring", stiffness: 160, damping: 26 }}
+                />
+              </div>
+              {annual != null && annual > 0 && (
+                <p className="mt-1.5 text-[11px] text-[var(--sw-text-dim)]">
+                  ≈ ${annual.toFixed(2)} / yr at current rate
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </SweemCard>
+  );
+}
+
+function VaultGrowthCard({
+  idle,
+  navi,
+  scallop,
+  naviApy,
+  scallopApy,
+  onInvest,
+}: VaultParts & { onInvest: () => void }) {
+  const mounted = useMounted();
+  const invested = navi + scallop;
+  const series = projectGrowth({ idle, navi, scallop, naviApy, scallopApy }, 12);
+  const now = series[0].value;
+  const future = series[series.length - 1].value;
+  const gain = future - now;
+
+  return (
+    <SweemCard className="flex flex-col">
+      <div className="flex items-center gap-3">
+        <IconChip>
+          <TrendingUp className="size-[18px]" strokeWidth={2} />
+        </IconChip>
+        <CardLabel className="text-[15px] text-[var(--sw-text)]">Projected Growth</CardLabel>
+      </div>
+
+      {invested <= 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
+          <p className="text-[13px] text-[var(--sw-text-muted)]">
+            Invest idle funds into Navi or Scallop to project how your vault grows.
+          </p>
+          <button
+            onClick={onInvest}
+            className="rounded-full bg-[var(--sw-mint)] px-4 py-2 text-[12.5px] font-semibold text-black transition-colors hover:bg-[#cef77f]"
+          >
+            Invest now
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="mt-3 flex items-end gap-2">
+            <MoneyValue value={future} className="text-[26px] leading-none" />
+            <span className="mb-0.5 text-[12.5px] font-semibold text-[var(--sw-mint)]">
+              +${gain.toFixed(2)}
+            </span>
+          </div>
+          <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">
+            Projected value in 12 months at current APR
+          </p>
+
+          <div className="mt-4 h-[150px] w-full flex-1">
+            {mounted && (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={series} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="vaultGrowth" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--sw-mint)" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="var(--sw-mint)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    interval={2}
+                    tick={{ fill: "var(--sw-text-dim)", fontSize: 11 }}
+                    tickMargin={8}
+                  />
+                  <YAxis hide domain={["dataMin", "dataMax"]} />
+                  <Tooltip content={<VaultTooltip />} />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="var(--sw-mint)"
+                    strokeWidth={2}
+                    fill="url(#vaultGrowth)"
+                    animationDuration={900}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </>
+      )}
+    </SweemCard>
   );
 }
 
@@ -374,22 +643,41 @@ export function EmployeePortalScreen() {
 
       {/* vault */}
       {effectiveVault && (
-        <div className="sweem-card mt-5">
-          <div className="sweem-card-head">
+        <section className="mt-6">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="sweem-card-title">Vault</p>
-              <p className="sweem-card-sub">{shortAddr(effectiveVault)}</p>
+              <p className="text-[17px] font-semibold text-[var(--sw-text)]">Vault</p>
+              <p className="font-mono text-[12.5px] text-[var(--sw-text-muted)]">
+                {shortAddr(effectiveVault)}
+              </p>
             </div>
             <ActionButton onClick={openInvest} disabled={busy || investIdleUsdc <= 0}>
               Invest more
             </ActionButton>
           </div>
-          <div className="sweem-grid sweem-grid-3">
-            <Stat label="Idle (USDC)" value={fromRaw(vinv?.idleRaw ?? 0n).toFixed(2)} />
-            <Stat label="In Navi" value={fromRaw(vinv?.naviRaw ?? 0n).toFixed(2)} />
-            <Stat label="In Scallop" value={fromRaw(vinv?.scallopRaw ?? 0n).toFixed(2)} />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <VaultBalanceCard
+              idle={fromRaw(vinv?.idleRaw ?? 0n)}
+              navi={fromRaw(vinv?.naviRaw ?? 0n)}
+              scallop={fromRaw(vinv?.scallopRaw ?? 0n)}
+            />
+            <VaultPositionsCard
+              idle={fromRaw(vinv?.idleRaw ?? 0n)}
+              navi={fromRaw(vinv?.naviRaw ?? 0n)}
+              scallop={fromRaw(vinv?.scallopRaw ?? 0n)}
+              naviApy={naviApy}
+              scallopApy={scallopApy}
+            />
+            <VaultGrowthCard
+              idle={fromRaw(vinv?.idleRaw ?? 0n)}
+              navi={fromRaw(vinv?.naviRaw ?? 0n)}
+              scallop={fromRaw(vinv?.scallopRaw ?? 0n)}
+              naviApy={naviApy}
+              scallopApy={scallopApy}
+              onInvest={openInvest}
+            />
           </div>
-        </div>
+        </section>
       )}
 
       {/* invest dialog */}

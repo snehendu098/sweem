@@ -125,7 +125,12 @@ export function Sidebar({
       )}
     >
       {/* Brand */}
-      <div className="flex h-[60px] items-center gap-2.5 px-5">
+      <div
+        className={cn(
+          "flex h-[60px] items-center gap-2.5",
+          collapsed ? "justify-center px-0" : "px-5"
+        )}
+      >
         <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--sw-mint)] text-[15px] font-bold text-black">
           S
         </span>
@@ -194,7 +199,12 @@ export function Sidebar({
       </nav>
 
       {/* Collapse */}
-      <div className="hidden border-t border-[var(--sw-border)] p-3 lg:block">
+      <div
+        className={cn(
+          "hidden border-t border-[var(--sw-border)] p-3 lg:flex",
+          collapsed && "justify-center"
+        )}
+      >
         <button
           type="button"
           onClick={onToggle}
