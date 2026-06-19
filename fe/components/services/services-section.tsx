@@ -1,4 +1,9 @@
 import { Reveal } from "@/components/motion/reveal";
+import { Section } from "@/components/layout/section";
+import { SectionHeading } from "@/components/layout/section-heading";
+import { Button } from "@/components/ui/button";
+import { StreamMeter } from "@/components/services/stream-meter";
+import { cn } from "@/lib/utils";
 
 function ServiceIcon() {
   return (
@@ -9,93 +14,149 @@ function ServiceIcon() {
   );
 }
 
-const cards = [
-  {
-    title: "Bank Integration",
-    desc: "Connect all your accounts effortlessly.",
-    bg: "linear-gradient(135deg,#5db8f0,#2dc9b4)",
-    icon: (
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" strokeWidth="1.8" aria-hidden>
-        <path d="M3 10h18M3 10V7l9-4 9 4v3M3 10v9a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-9" strokeLinecap="round" strokeLinejoin="round" />
-        <rect x="9" y="14" width="6" height="6" rx="0.5" />
-      </svg>
-    ),
-  },
-  {
-    title: "Instant Transfers",
-    desc: "Send money instantly and securely.",
-    bg: "linear-gradient(135deg,#34d399,#059669)",
-    icon: (
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" strokeWidth="1.8" aria-hidden>
-        <rect x="2" y="6" width="20" height="13" rx="2" />
-        <path d="M2 10h20M6 15h4" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-  {
-    title: "Mobile Payment",
-    desc: "Accept and manage payments with ease.",
-    bg: "linear-gradient(135deg,#a78bfa,#ec4899)",
-    icon: (
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" strokeWidth="1.8" aria-hidden>
-        <rect x="7" y="2" width="10" height="20" rx="2.5" />
-        <circle cx="12" cy="18" r="1" fill="white" stroke="none" />
-      </svg>
-    ),
-  },
-  {
-    title: "Smart Wallet",
-    desc: "Easily track and control your spending.",
-    bg: "linear-gradient(135deg,#9ca3af,#374151)",
-    icon: (
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" strokeWidth="1.8" aria-hidden>
-        <rect x="2" y="5" width="20" height="15" rx="2" />
-        <path d="M16 12h4M2 9h20" strokeLinecap="round" />
-        <circle cx="17" cy="12" r="1" fill="white" stroke="none" />
-      </svg>
-    ),
-  },
+function Tile({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <div
+      className={cn(
+        "group flex flex-col rounded-[22px] border border-border bg-surface p-6 transition duration-300",
+        "hover:-translate-y-1 hover:border-brand/30 hover:shadow-[0_18px_40px_rgba(4,40,80,0.08)]",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function TileCopy({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div className="mt-5">
+      <h3 className="text-[16px] font-semibold text-text-primary">{title}</h3>
+      <p className="mt-1.5 text-[13px] leading-[1.6] text-text-secondary">{desc}</p>
+    </div>
+  );
+}
+
+const yields = [
+  { name: "Navi", apy: "6.4%", color: "#1c6fd0" },
+  { name: "Scallop", apy: "5.8%", color: "#5db8f0" },
 ];
+
+const allocation = [
+  { label: "Wallet", pct: 40, color: "#0a0e16" },
+  { label: "Navi", pct: 35, color: "#1c6fd0" },
+  { label: "Scallop", pct: 25, color: "#7cc0f2" },
+];
+
+function TrendUp() {
+  return (
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+      <path d="M4 16l5-5 4 4 7-7M16 8h4v4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export function ServicesSection() {
   return (
-    <section className="bg-white px-24 py-20">
-      <div className="w-full">
-        {/* header */}
-        <Reveal className="mb-10 flex items-start justify-between gap-16">
-          <div className="max-w-[480px]">
-            <p className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#1c6fd0]">
-              <ServiceIcon />
-              Core Service
-            </p>
-            <h2 className="mt-3 text-[33px] font-medium leading-[1.1] tracking-[-0.02em] text-[#101828] md:text-[42px]">
-              Take full control of your{" "}
-              <span className="text-[#9aa5b4]">payments with smarter</span>
-            </h2>
-          </div>
-          <p className="mt-4 hidden max-w-[280px] shrink-0 text-[13px] leading-6 text-[#667085] md:block">
-            Track spending, plan budgets, and manage your money effortlessly with intelligent financial tools built for everyday use.
-          </p>
+    <Section className="bg-white">
+      <SectionHeading
+        eyebrow="Core Service"
+        eyebrowIcon={<ServiceIcon />}
+        title={
+          <>
+            Run payroll that <span className="text-text-muted">streams in real time</span>
+          </>
+        }
+        description="Fund a pool once and pay your whole team by the second on Sui — idle balances earn yield until salaries are claimed."
+      />
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* A — feature: real-time streaming (wide) */}
+        <Reveal className="md:col-span-2">
+          <Tile className="h-full rounded-[28px] bg-gradient-to-b from-white to-surface p-7">
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-[11px] font-medium text-brand">
+              Core engine
+            </span>
+            <div className="mt-5">
+              <StreamMeter />
+            </div>
+            <TileCopy
+              title="Real-Time Streaming"
+              desc="Salaries accrue every millisecond onchain — no payday, no batch runs. Fund the pool once and the team gets paid continuously."
+            />
+          </Tile>
         </Reveal>
 
-        {/* cards */}
-        <div className="grid grid-cols-4 gap-4">
-          {cards.map((card, i) => (
-            <Reveal key={card.title} delay={i * 0.06}>
-              <div className="flex h-full flex-col rounded-[18px] bg-[#f7f8fa] p-6">
+        {/* B — yield on idle cash */}
+        <Reveal delay={0.06}>
+          <Tile className="h-full justify-between">
+            <div className="flex flex-col gap-2">
+              {yields.map((y) => (
                 <div
-                  className="grid size-12 shrink-0 place-items-center rounded-[13px]"
-                  style={{ background: card.bg }}
+                  key={y.name}
+                  className="flex items-center justify-between rounded-xl border border-border bg-white px-3 py-2.5"
                 >
-                  {card.icon}
+                  <span className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
+                    <span className="size-2.5 rounded-full" style={{ background: y.color }} />
+                    {y.name}
+                  </span>
+                  <span className="flex items-center gap-1 text-[13px] font-semibold text-brand">
+                    <TrendUp />
+                    {y.apy} APY
+                  </span>
                 </div>
-                <h3 className="mt-8 text-[16px] font-semibold text-[#101828]">{card.title}</h3>
-                <p className="mt-1.5 text-[13px] leading-[1.6] text-[#667085]">{card.desc}</p>
+              ))}
+            </div>
+            <TileCopy
+              title="Yield on Idle Cash"
+              desc="Unclaimed payroll auto-invests across Navi & Scallop and keeps earning until claimed."
+            />
+          </Tile>
+        </Reveal>
+
+        {/* C — claim anytime */}
+        <Reveal delay={0.12}>
+          <Tile className="h-full justify-between">
+            <div className="rounded-2xl border border-border bg-white p-4">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted">Claimable</p>
+              <p className="mt-1 text-[24px] font-semibold tabular-nums text-text-primary">$1,240.18</p>
+              <Button className="mt-3 h-9 w-full rounded-full bg-brand text-white hover:bg-brand/90">
+                Claim now
+              </Button>
+            </div>
+            <TileCopy
+              title="Claim Anytime"
+              desc="Employees withdraw earned salary 24/7 — straight to wallet or a vault."
+            />
+          </Tile>
+        </Reveal>
+
+        {/* D — employee vaults (wide) */}
+        <Reveal delay={0.06} className="md:col-span-2">
+          <Tile className="h-full justify-between">
+            <div className="rounded-2xl border border-border bg-white p-4">
+              <div className="flex h-3 overflow-hidden rounded-full">
+                {allocation.map((a) => (
+                  <div key={a.label} style={{ width: `${a.pct}%`, background: a.color }} />
+                ))}
               </div>
-            </Reveal>
-          ))}
-        </div>
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
+                {allocation.map((a) => (
+                  <span key={a.label} className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+                    <span className="size-2 rounded-full" style={{ background: a.color }} />
+                    {a.label}
+                    <span className="font-semibold text-text-primary">{a.pct}%</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+            <TileCopy
+              title="Employee Vaults"
+              desc="Route claimed pay across your wallet and custom yield strategies — your allocation, your call."
+            />
+          </Tile>
+        </Reveal>
       </div>
-    </section>
+    </Section>
   );
 }

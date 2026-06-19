@@ -2743,3 +2743,293 @@ button.dashboard-screen-action:disabled {
     @apply font-sans;
   }
 }
+
+/* ============================================================================
+   Sweem dark theme for the Sweem dashboard.
+   `.sw-dash` scopes the dark palette + remaps the legacy --dash-* tokens and
+   overrides the hardcoded-light legacy dashboard/sweem classes so every existing
+   feature screen (Payroll, Employees, Portal, placeholders) inherits the new
+   look with zero logic changes. The redesigned Overview uses pure Sweem utility
+   classes and is unaffected by these overrides.
+   ========================================================================= */
+
+.sw-dash {
+  /* Sweem tokens — calibrated to the reference dashboard image */
+  --sw-bg: #0a0a0b;
+  --sw-bg-2: #0e0e11;
+  --sw-card: #1a1a1c;
+  --sw-card-inset: #232328;
+  --sw-border: rgba(255, 255, 255, 0.07);
+  --sw-border-strong: rgba(255, 255, 255, 0.13);
+  --sw-text: #f4f4f5;
+  --sw-text-muted: #8c8c92;
+  --sw-text-dim: #5d5d64;
+  --sw-mint: #c4f56b;
+  --sw-lavender: #bcaef7;
+  --sw-track: #2c2c31;
+  --sw-track-strong: #3a3a42;
+
+  /* Remap legacy dashboard tokens onto the dark palette */
+  --dash-text: var(--sw-text);
+  --dash-muted: var(--sw-text-muted);
+  --dash-faint: var(--sw-text-dim);
+  --dash-line: var(--sw-border);
+  --dash-line-strong: var(--sw-border-strong);
+  --dash-panel: var(--sw-card);
+  --dash-blue: var(--sw-mint);
+  --dash-blue-soft: rgba(196, 245, 107, 0.12);
+
+  color: var(--sw-text);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* Surfaces */
+.sw-dash :is(
+  .sweem-card,
+  .dashboard-action-card,
+  .dashboard-analytics-main,
+  .dashboard-volume-summary,
+  .dashboard-payments,
+  .dashboard-stat-card,
+  .dashboard-settings-card,
+  .dashboard-search-field,
+  .dashboard-dropdown,
+  .dashboard-key-empty,
+  .dashboard-refresh-button
+) {
+  background: var(--sw-card) !important;
+  border-color: var(--sw-border) !important;
+  color: var(--sw-text);
+  box-shadow: 0 24px 48px -32px rgba(0, 0, 0, 0.8) !important;
+}
+
+.sw-dash :is(.dashboard-data-table-wrap, .dashboard-table-wrap) {
+  background: transparent !important;
+  border-color: var(--sw-border) !important;
+}
+.sw-dash :is(.dashboard-data-table th, .dashboard-table th) {
+  color: var(--sw-text-muted) !important;
+  border-color: var(--sw-border) !important;
+}
+.sw-dash :is(.dashboard-data-table td, .dashboard-table td) {
+  color: var(--sw-text) !important;
+  border-color: var(--sw-border) !important;
+}
+.sw-dash .dashboard-data-empty-shaded {
+  background: var(--sw-bg-2) !important;
+}
+
+/* Headings + body text */
+.sw-dash :is(
+  .dashboard-title,
+  .dashboard-screen-title,
+  .dashboard-payments-title,
+  .dashboard-metric-value,
+  .sweem-card-title,
+  .sweem-stat-value,
+  .dashboard-stat-card strong,
+  .dashboard-settings-card strong,
+  .dashboard-empty-title
+) {
+  color: var(--sw-text) !important;
+}
+.sw-dash :is(
+  .dashboard-screen-subtitle,
+  .dashboard-metric-label,
+  .dashboard-volume-row,
+  .dashboard-volume-title,
+  .dashboard-volume-note,
+  .sweem-card-sub,
+  .sweem-stat-label,
+  .sweem-hint,
+  .dashboard-stat-card span,
+  .dashboard-settings-card small,
+  .dashboard-empty-copy,
+  .dashboard-list-filters
+) {
+  color: var(--sw-text-muted) !important;
+}
+.sw-dash .dashboard-volume-row span:last-child {
+  color: var(--sw-text) !important;
+}
+.sw-dash .dashboard-settings-group h2 {
+  color: var(--sw-mint) !important;
+}
+
+/* Inputs */
+.sw-dash :is(.sweem-input, .dashboard-search-field input) {
+  background: var(--sw-card-inset) !important;
+  border-color: var(--sw-border) !important;
+  color: var(--sw-text) !important;
+}
+.sw-dash .sweem-input::placeholder {
+  color: var(--sw-text-dim) !important;
+}
+.sw-dash .sweem-label {
+  color: var(--sw-text-muted) !important;
+}
+
+/* Buttons */
+.sw-dash .dashboard-screen-action {
+  background: var(--sw-card-inset) !important;
+  border-color: var(--sw-border) !important;
+  color: var(--sw-text) !important;
+}
+.sw-dash :is(.dashboard-screen-action-primary, .dashboard-button-primary) {
+  background: var(--sw-mint) !important;
+  border-color: transparent !important;
+  color: #0a0a0b !important;
+}
+.sw-dash .dashboard-screen-action-primary:hover {
+  background: #cef77f !important;
+}
+
+/* Stat tabs / chart tabs */
+.sw-dash .dashboard-stat-card-active {
+  border-color: var(--sw-mint) !important;
+  box-shadow: 0 0 0 1px var(--sw-mint) !important;
+}
+.sw-dash .dashboard-chart-tab {
+  background: var(--sw-card-inset) !important;
+  color: var(--sw-text-muted) !important;
+}
+.sw-dash .dashboard-chart-tab-active {
+  background: var(--sw-mint) !important;
+  color: #0a0a0b !important;
+}
+
+/* Modal */
+.sw-dash .sweem-modal-overlay {
+  background: rgba(0, 0, 0, 0.66) !important;
+}
+.sw-dash .sweem-modal {
+  background: var(--sw-card) !important;
+  border: 1px solid var(--sw-border-strong) !important;
+  color: var(--sw-text) !important;
+}
+.sw-dash .sweem-modal-title {
+  color: var(--sw-text) !important;
+}
+.sw-dash .sweem-modal-sub {
+  color: var(--sw-text-muted) !important;
+}
+.sw-dash .sweem-protocol-row {
+  background: var(--sw-card-inset) !important;
+  border-color: var(--sw-border) !important;
+}
+
+/* Badges, gates, links */
+.sw-dash :is(.sweem-badge, .dashboard-badge) {
+  background: var(--sw-card-inset) !important;
+  color: var(--sw-text-muted) !important;
+}
+.sw-dash :is(.sweem-badge-live, .dashboard-badge-new) {
+  background: rgba(196, 245, 107, 0.16) !important;
+  color: var(--sw-mint) !important;
+}
+.sw-dash .sweem-gate {
+  background: var(--sw-card) !important;
+  border-color: var(--sw-border) !important;
+  color: var(--sw-text-muted) !important;
+}
+.sw-dash .dashboard-link-text {
+  color: var(--sw-mint) !important;
+}
+
+/* Settings icon keeps an accent chip tuned to the palette */
+.sw-dash .dashboard-settings-icon {
+  background: linear-gradient(160deg, #2a2a30, #17171a) !important;
+  color: var(--sw-mint) !important;
+  box-shadow: none !important;
+}
+.sw-dash .dashboard-settings-card::after {
+  border-color: var(--sw-text-dim) !important;
+}
+
+/* ============================================================================
+   Dark theme for the marketing landing — mirrors the Sweem dashboard palette.
+   Scoped to .sw-landing; overrides the light utility classes the sections use
+   (the landing mixes @theme tokens with hardcoded hex, so we flip the classes
+   directly). Subtle white overlays + white text are intentionally preserved.
+   ========================================================================= */
+
+.sw-landing {
+  --sw-bg: #0a0a0b;
+  --sw-bg-2: #0e0e11;
+  --sw-card: #1a1a1c;
+  --sw-card-inset: #232328;
+  --sw-border: rgba(255, 255, 255, 0.08);
+  --sw-border-strong: rgba(255, 255, 255, 0.14);
+  --sw-text: #f4f4f5;
+  --sw-text-muted: #9a9aa1;
+  --sw-text-dim: #6b6b72;
+  --sw-mint: #c4f56b;
+  --sw-lavender: #bcaef7;
+
+  background-color: var(--sw-bg);
+  color: var(--sw-text);
+}
+
+/* Light surfaces -> dark cards */
+.sw-landing :is(
+  .bg-white, .bg-white\/90, .bg-white\/75, .bg-white\/70,
+  .bg-\[\#fafbfc\], .bg-\[\#f9fafb\], .bg-\[\#f7f8fa\], .bg-\[\#f3f4f6\],
+  .bg-\[\#f1f2f4\], .bg-\[\#e2e6ea\], .bg-\[\#d0d5dd\], .bg-\[\#101828\]
+) {
+  background-color: var(--sw-card) !important;
+}
+.sw-landing :is(.bg-surface, .to-surface) {
+  background-color: var(--sw-card-inset) !important;
+}
+.sw-landing :is(.hover\:bg-\[\#f9fafb\]:hover, .hover\:bg-\[\#e9ebee\]:hover) {
+  background-color: var(--sw-card-inset) !important;
+}
+/* Light-blue accent chips -> mint tint */
+.sw-landing :is(.bg-\[\#e8f0fb\], .bg-\[\#dbeafe\]) {
+  background-color: rgba(196, 245, 107, 0.12) !important;
+}
+
+/* Brand fill -> mint with dark text */
+.sw-landing :is(.bg-brand, .hover\:bg-brand:hover, .hover\:bg-brand\/90:hover) {
+  background-color: var(--sw-mint) !important;
+  color: #0a0a0b !important;
+}
+.sw-landing .bg-brand\/25 { background-color: rgba(196, 245, 107, 0.16) !important; }
+
+/* Dark text -> light */
+.sw-landing :is(
+  .text-text-primary, .hover\:text-text-primary:hover,
+  .text-\[\#101828\], .hover\:text-\[\#101828\]:hover, .text-\[\#1a2535\]
+) {
+  color: var(--sw-text) !important;
+}
+.sw-landing :is(.text-text-secondary, .text-\[\#344054\], .text-\[\#475467\], .text-\[\#667085\]) {
+  color: var(--sw-text-muted) !important;
+}
+.sw-landing :is(.text-text-muted, .text-\[\#8a93a3\], .text-\[\#98a2b3\]) {
+  color: var(--sw-text-dim) !important;
+}
+.sw-landing :is(.text-brand, .text-\[\#1c6fd0\]) { color: var(--sw-mint) !important; }
+
+/* Borders + rings -> subtle */
+.sw-landing :is(
+  .border-border, .border-\[\#eaecf0\], .border-\[\#eef0f3\], .border-\[\#f0f2f5\]
+) {
+  border-color: var(--sw-border) !important;
+}
+.sw-landing :is(.ring-border, .ring-\[\#e5e7eb\], .ring-\[\#eef0f3\], .ring-black\/5) {
+  --tw-ring-color: var(--sw-border) !important;
+}
+.sw-landing .hover\:border-brand\/30:hover { border-color: rgba(196, 245, 107, 0.32) !important; }
+.sw-landing :is(.ring-brand, .hover\:ring-brand\/20:hover) {
+  --tw-ring-color: rgba(196, 245, 107, 0.3) !important;
+}
+
+/* Blue gradients -> mint / lavender */
+.sw-landing :is(.from-brand, .from-brand\/40, .from-\[\#3b9be8\], .from-\[\#4d95de\]) {
+  --tw-gradient-from: var(--sw-mint) var(--tw-gradient-from-position) !important;
+}
+.sw-landing .from-white { --tw-gradient-from: var(--sw-card) var(--tw-gradient-from-position) !important; }
+.sw-landing :is(.to-brand, .to-\[\#1c6fd0\], .to-\[\#86bfef\]) {
+  --tw-gradient-to: var(--sw-lavender) var(--tw-gradient-to-position) !important;
+}

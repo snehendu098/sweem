@@ -1,4 +1,6 @@
 import { Reveal } from "@/components/motion/reveal";
+import { Section } from "@/components/layout/section";
+import { Button } from "@/components/ui/button";
 
 function Sparkle({ size = 22, className }: { size?: number; className: string }) {
   return (
@@ -17,10 +19,10 @@ function Sparkle({ size = 22, className }: { size?: number; className: string })
 
 export function CtaSection() {
   return (
-    <section className="bg-white px-24 py-12">
-      <Reveal className="w-full">
+    <Section className="bg-white">
+      <Reveal>
         <div
-          className="relative overflow-hidden rounded-[28px] px-8 py-28 text-center text-white"
+          className="relative overflow-hidden rounded-[28px] px-8 py-24 text-center text-white md:py-28"
           style={{
             background: `
               radial-gradient(ellipse 55% 60% at 8% 105%, rgba(255,255,255,0.97) 0%, transparent 52%),
@@ -31,6 +33,13 @@ export function CtaSection() {
             `,
           }}
         >
+          {/* spotlight overlay */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-24 left-1/2 h-72 w-[60%] -translate-x-1/2 rounded-full opacity-50 blur-3xl"
+            style={{ background: "radial-gradient(ellipse at center, rgba(255,255,255,0.9), transparent 70%)" }}
+          />
+
           <Sparkle size={24} className="left-[11%] top-[22%]" />
           <Sparkle size={16} className="right-[8%] top-[40%]" />
           <Sparkle size={14} className="bottom-[22%] left-[28%] opacity-80" />
@@ -38,23 +47,30 @@ export function CtaSection() {
           <div className="relative z-10">
             <p className="inline-flex items-center gap-2 text-[12px] font-medium text-white/85">
               <span className="size-1.5 rounded-full bg-white/90" />
-              Start Growing Today
+              Start Streaming Today
             </p>
-            <h2 className="mx-auto mt-3 text-[33px] font-medium leading-[1.1] tracking-[-0.02em] md:text-[42px]">
-              Build Your Financial Future<br />with Confidence
+            <h2 className="mx-auto mt-3 text-[clamp(28px,4vw,42px)] font-medium leading-[1.1] tracking-[-0.02em]">
+              Stream Your Payroll
+              <br />
+              with Confidence
             </h2>
             <p className="mx-auto mt-4 max-w-[460px] text-[13px] leading-6 text-white/80">
-              Smart tools to save more, invest smarter, and stay in control of your money.
+              Fund a pool, stream salaries by the second, and earn on every idle dollar.
             </p>
-            <button className="mt-7 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3 text-[13px] font-medium text-[#101828]">
-              Get Started
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
-                <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
+            <Button
+              asChild
+              className="mt-7 gap-2 rounded-full bg-white px-7 text-[13px] font-medium text-text-primary hover:bg-white/90"
+            >
+              <a href="/dashboard">
+                Launch Dashboard
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+                  <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </a>
+            </Button>
           </div>
         </div>
       </Reveal>
-    </section>
+    </Section>
   );
 }
