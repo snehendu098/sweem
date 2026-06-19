@@ -15,8 +15,8 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Finexa | Global Money Transfers",
-  description: "Fast, easy global money transfers and finance tools for modern teams.",
+  title: "Sweem — Streaming payroll on Sui",
+  description: "Stream salaries per second and earn yield on idle payroll — on Sui.",
 };
 
 export default function RootLayout({

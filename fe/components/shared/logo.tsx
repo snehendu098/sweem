@@ -1,5 +1,5 @@
 export function Logo({ dark = false }: { dark?: boolean }) {
-  const mark = dark ? "#ffffff" : "#1c6fd0";
+  const mark = dark ? "#ffffff" : "#c4f56b";
   return (
     <div className="flex items-center gap-2">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>

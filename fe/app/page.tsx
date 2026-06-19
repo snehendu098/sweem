@@ -12,7 +12,7 @@ import { TestimonialsSection } from "@/components/testimonials/testimonials-sect
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-white">
+    <main className="sw-landing min-h-screen">
       <HeroSection />
       <IntegrationsSection />
       <ServicesSection />

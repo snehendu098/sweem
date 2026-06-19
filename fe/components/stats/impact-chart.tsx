@@ -36,8 +36,8 @@ export function ImpactChart() {
       <svg viewBox="0 0 300 120" className="mt-5 w-full" preserveAspectRatio="none" aria-hidden>
         <defs>
           <linearGradient id="impactFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1c6fd0" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#1c6fd0" stopOpacity="0" />
+            <stop offset="0%" stopColor="#c4f56b" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#c4f56b" stopOpacity="0" />
           </linearGradient>
         </defs>
 
@@ -52,7 +52,7 @@ export function ImpactChart() {
         <motion.path
           d={LINE}
           fill="none"
-          stroke="#1c6fd0"
+          stroke="#c4f56b"
           strokeWidth="2.5"
           strokeLinecap="round"
           initial={reduce ? { pathLength: 1 } : { pathLength: 0 }}
@@ -64,7 +64,7 @@ export function ImpactChart() {
           cx="300"
           cy="12"
           r="4"
-          fill="#1c6fd0"
+          fill="#c4f56b"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true, amount: 0.4 }}

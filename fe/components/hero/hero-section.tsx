@@ -22,6 +22,18 @@ export function HeroSection() {
       id="home"
       className="hero-bg relative overflow-hidden px-6 pb-32 pt-28 text-white md:px-12 lg:px-24"
     >
+      {/* bg1 background image */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('/bg1.png')" }}
+      />
+      {/* legibility + blend into the page below */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0a0a0b]/35 via-transparent to-[#0a0a0b]/75"
+      />
+
       <Navbar />
 
       <div className="hero-copy relative z-10 mx-auto flex max-w-3xl flex-col items-center text-center">
