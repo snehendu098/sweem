@@ -20,8 +20,20 @@ export function HeroSection() {
   return (
     <section
       id="home"
-      className="hero-bg relative overflow-hidden px-24 pb-32 pt-28 text-white"
+      className="hero-bg relative overflow-hidden px-6 pb-32 pt-28 text-white md:px-12 lg:px-24"
     >
+      {/* bg1 background image */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('/bg1.png')" }}
+      />
+      {/* legibility + blend into the page below */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0a0a0b]/35 via-transparent to-[#0a0a0b]/75"
+      />
+
       <Navbar />
 
       <div className="hero-copy relative z-10 mx-auto flex max-w-3xl flex-col items-center text-center">
@@ -35,26 +47,27 @@ export function HeroSection() {
               />
             ))}
           </div>
-          <span>Trusted by 50M+ Users</span>
+          <span>Built for onchain teams</span>
         </div>
 
         <h1 className="text-[62px] font-medium leading-[1.05] tracking-[-0.025em] md:text-[82px]">
-          Fast, Easy Global
+          Stream Payroll.
           <br />
-          Money Transfers
+          Earn on Idle Cash.
         </h1>
 
         <p className="mt-5 max-w-[470px] text-[14px] leading-6 text-white/85 md:text-[15px]">
-          Track spending, plan budgets, and manage your money effortlessly with
-          intelligent financial tools built for everyday use.
+          Pay your team by the second on Sui. Idle payroll auto-earns yield
+          across Navi and Scallop — runway you can see, salaries employees claim
+          anytime.
         </p>
 
         <div className="mt-8 flex items-center gap-3">
           <a
-            href="#home"
+            href="/dashboard"
             className="rounded-full bg-white px-6 py-3 text-[14px] font-semibold text-[#101828] shadow-[0_14px_30px_rgba(4,40,80,0.18)]"
           >
-            Start Free trial
+            Launch Dashboard
           </a>
           <button className="grid size-12 place-items-center rounded-full border border-white/40 bg-white/15 backdrop-blur-md">
             <GoogleIcon />
@@ -65,12 +78,14 @@ export function HeroSection() {
         </div>
       </div>
 
-      <div className="relative z-10 mt-14 flex h-[520px] w-full items-center justify-center overflow-hidden rounded-[22px] bg-white/20">
-        <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.4" className="size-12" aria-hidden>
-          <rect x="3" y="4" width="18" height="16" rx="2.5" />
-          <circle cx="8.5" cy="9.5" r="1.6" />
-          <path d="M21 15.5l-5-5L5 20.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+      <div className="relative z-10 mx-auto mt-14 w-full max-w-5xl">
+        <img
+          src="/sweem-dashboard.png"
+          alt="Sweem dashboard — live payroll streaming"
+          width={755}
+          height={493}
+          className="w-full rounded-[18px] [mask-image:linear-gradient(to_bottom,black_62%,transparent_100%)]"
+        />
       </div>
     </section>
   );

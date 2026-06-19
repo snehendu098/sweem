@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Badge } from "./badge";
+import { motion } from "framer-motion";
 import { Icon, type IconName } from "./icons";
+import { cn } from "@/lib/utils";
 
 type SubNavItem = {
   readonly label: string;
@@ -15,10 +16,8 @@ type NavItem = {
   readonly label: string;
   readonly href: string;
   readonly badge?: string;
-  /** Prefix used to determine expanded state for items with subitems. */
   readonly matchPrefix?: string;
   readonly subitems?: readonly SubNavItem[];
-  /** CSS class variant for the submenu — billing and developer use different class names. */
   readonly submenuVariant?: "billing" | "developer";
 };
 
@@ -34,18 +33,11 @@ const navItems: readonly NavItem[] = [
     href: "/dashboard/billing/subscriptions",
     matchPrefix: "/dashboard/billing",
     submenuVariant: "billing",
-    subitems: [
-      { label: "Subscriptions", href: "/dashboard/billing/subscriptions" },
-    ],
+    subitems: [{ label: "Subscriptions", href: "/dashboard/billing/subscriptions" }],
   },
   { icon: "invoice", label: "Invoices", href: "/dashboard/invoices" },
   { icon: "box", label: "Products", href: "/dashboard/products" },
-  {
-    icon: "bank",
-    label: "Offramp to Bank",
-    href: "/dashboard/offramp",
-    badge: "New",
-  },
+  { icon: "bank", label: "Offramp to Bank", href: "/dashboard/offramp", badge: "New" },
   {
     icon: "developer",
     label: "Developer",
@@ -64,9 +56,7 @@ const navItems: readonly NavItem[] = [
 ] satisfies readonly NavItem[];
 
 function getNavItemState(item: NavItem, pathname: string) {
-  const isExpanded = item.matchPrefix
-    ? pathname.startsWith(item.matchPrefix)
-    : false;
+  const isExpanded = item.matchPrefix ? pathname.startsWith(item.matchPrefix) : false;
   const isActive =
     item.href === "/dashboard"
       ? pathname === item.href
@@ -76,31 +66,39 @@ function getNavItemState(item: NavItem, pathname: string) {
 
 function SubMenu({
   items,
-  variant,
   pathname,
+  onNavigate,
 }: {
   items: readonly SubNavItem[];
-  variant: "billing" | "developer";
   pathname: string;
+  onNavigate: () => void;
 }) {
-  const isBilling = variant === "billing";
-  const menuClass = isBilling ? "dashboard-nested-menu" : "dashboard-developer-menu";
-  const linkClass = isBilling ? "dashboard-nested-link" : "dashboard-developer-link";
-  const activeLinkClass = isBilling ? "dashboard-nested-link-active" : "dashboard-developer-link-active";
-  const dotClass = isBilling ? "dashboard-nested-dot" : "dashboard-developer-dot";
-
   return (
-    <div className={menuClass}>
-      {items.map((item) => (
-        <Link
-          className={`${linkClass} ${pathname === item.href ? activeLinkClass : ""}`}
-          href={item.href}
-          key={item.label}
-        >
-          <span className={dotClass} />
-          <span>{item.label}</span>
-        </Link>
-      ))}
+    <div className="ml-[26px] mt-1 flex flex-col border-l border-[var(--sw-border)] pl-3">
+      {items.map((item) => {
+        const active = pathname === item.href;
+        return (
+          <Link
+            key={item.label}
+            href={item.href}
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center gap-2.5 rounded-md py-1.5 text-[12.5px] transition-colors",
+              active
+                ? "font-medium text-[var(--sw-mint)]"
+                : "text-[var(--sw-text-muted)] hover:text-[var(--sw-text)]"
+            )}
+          >
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                active ? "bg-[var(--sw-mint)]" : "bg-[var(--sw-text-dim)]"
+              )}
+            />
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -109,59 +107,102 @@ export function Sidebar({
   open,
   collapsed,
   onToggle,
+  onClose,
 }: {
   open: boolean;
   collapsed: boolean;
   onToggle: () => void;
+  onClose: () => void;
 }) {
   const pathname = usePathname();
 
   return (
     <aside
-      className={`dashboard-sidebar ${open ? "dashboard-sidebar-open" : ""} ${
-        collapsed ? "dashboard-sidebar-collapsed" : ""
-      }`}
+      className={cn(
+        "fixed inset-y-0 left-0 z-40 flex h-full flex-col border-r border-[var(--sw-border)] bg-[var(--sw-bg)] transition-[width,transform] duration-200 lg:static lg:translate-x-0",
+        collapsed ? "w-[74px]" : "w-[244px]",
+        open ? "translate-x-0" : "-translate-x-full"
+      )}
     >
-      <nav aria-label="Primary" className="dashboard-nav">
+      {/* Brand */}
+      <div className="flex h-[60px] items-center gap-2.5 px-5">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--sw-mint)] text-[15px] font-bold text-black">
+          S
+        </span>
+        {!collapsed && (
+          <>
+            <span className="text-[17px] font-semibold tracking-[-0.02em]">Sweem</span>
+            <span className="rounded-md bg-[var(--sw-card-inset)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--sw-text-muted)]">
+              Beta
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Nav */}
+      <nav aria-label="Primary" className="flex-1 overflow-y-auto px-3 py-2">
         {navItems.map((item) => {
           const { isExpanded, isActive } = getNavItemState(item, pathname);
-
           return (
-            <div className="dashboard-nav-group" key={item.label}>
+            <div key={item.label} className="mb-0.5">
               <Link
-                title={item.label}
-                aria-expanded={item.subitems ? isExpanded : undefined}
-                className={`dashboard-nav-item ${
-                  isActive && !isExpanded ? "dashboard-nav-item-active" : ""
-                } ${isExpanded ? "dashboard-nav-item-expanded" : ""}`}
                 href={item.href}
+                title={item.label}
+                onClick={onClose}
+                aria-expanded={item.subitems ? isExpanded : undefined}
+                className={cn(
+                  "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium transition-colors",
+                  collapsed && "justify-center px-0",
+                  isActive
+                    ? "text-[var(--sw-text)]"
+                    : "text-[var(--sw-text-muted)] hover:text-[var(--sw-text)]"
+                )}
               >
-                <Icon name={item.icon} />
-                <span>{item.label}</span>
-                {item.badge ? <Badge tone="new">{item.badge}</Badge> : null}
+                {isActive && (
+                  <motion.span
+                    layoutId="sw-sidebar-active"
+                    transition={{ type: "spring", stiffness: 320, damping: 30 }}
+                    className="absolute inset-0 rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)]"
+                  />
+                )}
+                <span
+                  className={cn(
+                    "relative z-10 flex items-center gap-3",
+                    isActive && "text-[var(--sw-mint)]"
+                  )}
+                >
+                  <Icon name={item.icon} size={18} />
+                </span>
+                {!collapsed && (
+                  <span className="relative z-10 flex flex-1 items-center justify-between">
+                    <span>{item.label}</span>
+                    {item.badge && (
+                      <span className="rounded-md bg-[rgba(196,245,107,0.16)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--sw-mint)]">
+                        {item.badge}
+                      </span>
+                    )}
+                  </span>
+                )}
               </Link>
 
-              {item.subitems && isExpanded ? (
-                <SubMenu
-                  items={item.subitems}
-                  variant={item.submenuVariant!}
-                  pathname={pathname}
-                />
-              ) : null}
+              {!collapsed && item.subitems && isExpanded && (
+                <SubMenu items={item.subitems} pathname={pathname} onNavigate={onClose} />
+              )}
             </div>
           );
         })}
       </nav>
 
-      <div className="dashboard-sidebar-foot">
+      {/* Collapse */}
+      <div className="hidden border-t border-[var(--sw-border)] p-3 lg:block">
         <button
-          className="dashboard-collapse-btn"
-          onClick={onToggle}
           type="button"
+          onClick={onToggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="flex size-9 items-center justify-center rounded-lg border border-[var(--sw-border)] text-[var(--sw-text-muted)] transition-colors hover:bg-[var(--sw-card-inset)] hover:text-[var(--sw-text)]"
         >
           <svg
-            className={`dashboard-collapse-icon ${collapsed ? "is-collapsed" : ""}`}
+            className={cn("transition-transform", collapsed && "rotate-180")}
             width="18"
             height="18"
             viewBox="0 0 24 24"

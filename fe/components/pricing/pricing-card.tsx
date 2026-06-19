@@ -1,3 +1,8 @@
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+
 function CheckCircle() {
   return (
     <span className="grid size-[18px] shrink-0 place-items-center rounded-full bg-[#22c55e]">
@@ -18,32 +23,54 @@ type PricingCardProps = {
   features: string[];
 };
 
-export function PricingCard({ name, subtitle, price, period = "/ yearly", cta, featured = false, features }: PricingCardProps) {
+export function PricingCard({
+  name,
+  subtitle,
+  price,
+  period = "/ yearly",
+  cta,
+  featured = false,
+  features,
+}: PricingCardProps) {
   return (
-    <article className={`flex h-full flex-col rounded-[20px] p-6 ${
-      featured
-        ? "bg-white ring-2 ring-[#1c6fd0] shadow-[0_24px_60px_rgba(28,111,208,0.12)]"
-        : "bg-[#f7f8fa] ring-1 ring-[#eef0f3]"
-    }`}>
+    <Card
+      className={cn(
+        "relative h-full gap-0 rounded-[20px] p-6 shadow-none",
+        featured
+          ? "border-transparent bg-white ring-2 ring-brand shadow-[0_24px_60px_rgba(28,111,208,0.12)]"
+          : "border-border bg-surface",
+      )}
+    >
+      {featured ? (
+        <Badge className="absolute right-5 top-5 rounded-full bg-brand text-primary-foreground">
+          Most popular
+        </Badge>
+      ) : null}
+
       <div>
-        <h3 className="text-[17px] font-semibold text-[#101828]">{name}</h3>
-        <p className="mt-1 text-[13px] text-[#667085]">{subtitle}</p>
+        <h3 className="text-[17px] font-semibold text-text-primary">{name}</h3>
+        <p className="mt-1 text-[13px] text-text-secondary">{subtitle}</p>
       </div>
 
       <div className="mt-6 flex items-end gap-1.5">
-        <span className="text-[38px] font-semibold tracking-[-0.03em] text-[#101828] leading-none">{price}</span>
-        <span className="mb-1 text-[12px] text-[#98a2b3]">{period}</span>
+        <span className="text-[38px] font-semibold leading-none tracking-[-0.03em] text-text-primary">
+          {price}
+        </span>
+        <span className="mb-1 text-[12px] text-text-muted">{period}</span>
       </div>
 
-      <button className={`mt-5 h-12 w-full rounded-full text-[13px] font-medium transition-colors ${
-        featured
-          ? "bg-[#0a0e16] text-white hover:bg-[#1a2030]"
-          : "bg-white text-[#344054] ring-1 ring-[#d0d5dd] hover:bg-[#f9fafb]"
-      }`}>
+      <Button
+        className={cn(
+          "mt-5 h-12 w-full rounded-full text-[13px] font-medium",
+          featured
+            ? "bg-brand-dark text-white hover:bg-brand-dark/90"
+            : "border border-border bg-white text-[#344054] hover:bg-[#f9fafb]",
+        )}
+      >
         {cta}
-      </button>
+      </Button>
 
-      <ul className="mt-6 space-y-3.5 border-t border-[#eef0f3] pt-6">
+      <ul className="mt-6 space-y-3.5 border-t border-border pt-6">
         {features.map((f) => (
           <li key={f} className="flex items-center gap-2.5 text-[13px] text-[#344054]">
             <CheckCircle />
@@ -51,6 +78,6 @@ export function PricingCard({ name, subtitle, price, period = "/ yearly", cta, f
           </li>
         ))}
       </ul>
-    </article>
+    </Card>
   );
 }

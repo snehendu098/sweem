@@ -1,34 +1,51 @@
 import { FeatureCard } from "@/components/features/feature-card";
 import { Reveal } from "@/components/motion/reveal";
+import { Section } from "@/components/layout/section";
+import { SectionHeading } from "@/components/layout/section-heading";
 
 const rowOne = [
   {
     id: "global-payments",
-    lead: "Manage global payments.",
-    rest: "Effortlessly track, convert, and stay compliant in one dashboard.",
+    tag: "Streaming",
+    lead: "Pay by the second",
+    rest: "Your team accrues salary continuously onchain — no payday.",
+    image: "/assets/1.png",
+    imageAlt: "Salaries streaming to a team onchain",
   },
   {
     id: "instant-transfers",
-    lead: "Instant cross-border transfers.",
-    rest: "Send funds to 180+ countries in seconds with live FX rates and zero hidden fees.",
+    tag: "Yield",
+    lead: "Idle cash never sleeps",
+    rest: "Unclaimed payroll auto-invests on Sui and keeps earning.",
+    image: "/assets/2.png",
+    imageAlt: "Idle payroll funds earning yield across Sui protocols",
   },
 ];
 
 const rowTwo = [
   {
     id: "rewards",
-    lead: "Get Gifts and Bonus.",
-    rest: "Earn exclusive rewards, bonuses, and benefits with every eligible transaction.",
+    tag: "Visibility",
+    lead: "Know your runway",
+    rest: "See how long your treasury funds payroll, live.",
+    image: "/assets/3.png",
+    imageAlt: "Live payroll runway visibility",
   },
   {
     id: "analytics",
-    lead: "Real-time analytics.",
-    rest: "Understand every dollar with clear charts, breakdowns, and exportable reports.",
+    tag: "Control",
+    lead: "Total stream control",
+    rest: "Pause, resume, or stop any stream instantly.",
+    image: "/assets/4.png",
+    imageAlt: "Pause, resume, and stop individual salary streams",
   },
   {
     id: "security",
-    lead: "Bank-grade security.",
-    rest: "End-to-end encryption, 2FA, and SOC 2 compliance keep your funds protected.",
+    tag: "Security",
+    lead: "Your keys, your payroll",
+    rest: "Wallet-signed and non-custodial, settled on Sui.",
+    image: "/assets/5.png",
+    imageAlt: "Non-custodial payroll secured by wallet signatures",
   },
 ];
 
@@ -42,37 +59,30 @@ function BoltIcon() {
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="bg-[#f9fafb] px-24 py-20 md:py-24">
-      <div className="w-full">
-        <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#1c6fd0]">
-            <BoltIcon />
-            Core Features
-          </p>
-          <h2 className="mt-3 whitespace-nowrap text-[33px] font-medium leading-[1.08] tracking-[-0.02em] text-[#101828] md:text-[42px]">
-            Powerful Finance, Zero Complexity
-          </h2>
-          <p className="mt-4 whitespace-nowrap text-[14px] leading-6 text-[#667085]">
-            Clear insights and tools to manage, track, and grow your finances with confidence.
-          </p>
-        </Reveal>
+    <Section id="features" className="bg-[#f9fafb]">
+      <SectionHeading
+        align="center"
+        eyebrow="Core Features"
+        eyebrowIcon={<BoltIcon />}
+        title="Onchain payroll, zero overhead"
+        description="Everything you need to run payroll that streams, earns, and stays under your control — all settled on Sui."
+      />
 
-        <div className="mt-12 grid gap-6 lg:grid-cols-2">
-          {rowOne.map((card, index) => (
-            <Reveal key={card.id} delay={index * 0.08}>
-              <FeatureCard {...card} aspect="aspect-[3/2]" align="left" large />
-            </Reveal>
-          ))}
-        </div>
-
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {rowTwo.map((card, index) => (
-            <Reveal key={card.id} delay={index * 0.08}>
-              <FeatureCard {...card} aspect="aspect-[16/15]" align="center" />
-            </Reveal>
-          ))}
-        </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        {rowOne.map((card, index) => (
+          <Reveal key={card.id} delay={index * 0.08}>
+            <FeatureCard {...card} aspect="aspect-[3/2]" align="left" large />
+          </Reveal>
+        ))}
       </div>
-    </section>
+
+      <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {rowTwo.map((card, index) => (
+          <Reveal key={card.id} delay={index * 0.08}>
+            <FeatureCard {...card} aspect="aspect-[16/15]" align="center" />
+          </Reveal>
+        ))}
+      </div>
+    </Section>
   );
 }

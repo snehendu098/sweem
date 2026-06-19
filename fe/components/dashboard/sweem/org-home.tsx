@@ -1,367 +1,572 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ConnectModal } from "@mysten/dapp-kit";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+} from "recharts";
+import {
+  ArrowUpRight,
+  ChevronRight,
+  Coins,
+  Receipt,
+  Users,
+  Wallet,
+  Zap,
+} from "lucide-react";
 
-import { Icon } from "@/components/dashboard/icons";
-import { Flower } from "@/components/dashboard/dx/flower";
-import { CyclesChart } from "@/components/dashboard/sweem/cycles-chart";
-
-const REFERRAL_URL = "https://www.dribbble.com/mdmostahid9";
+import type { Employee, YieldQuote } from "@/lib/api";
+import { WEEK_MS, fromRaw, EXPLORER_TX } from "@/lib/sweem";
+import { readRecentActivity, type ActivityRow } from "@/lib/tx";
+import {
+  CardLabel,
+  IconChip,
+  MoneyValue,
+  SweemCard,
+} from "@/components/sweem-ui/primitives";
+import { Column, DashboardGrid } from "@/components/sweem-ui/dashboard-grid";
+import { useOrgPool } from "./use-org-pool";
+import { LiveTicker } from "./live-ticker";
+import { monthlyRate, shortAddr } from "./helpers";
 
 export function OrgHome() {
-  const [showPromo, setShowPromo] = useState(true);
+  const pool = useOrgPool();
+  const {
+    wallet,
+    api,
+    client,
+    org,
+    employees,
+    funded,
+    idleUsdc,
+    naviUsdc,
+    scallopUsdc,
+    totalInPool,
+    totalMonthly,
+    streamedBaseRaw,
+    weeklyRaw,
+    onChainPoolId,
+    anchorAt,
+  } = pool;
 
-  function copyReferralLink() {
-    navigator.clipboard
-      .writeText(REFERRAL_URL)
-      .then(() => toast.success("Referral link copied"))
-      .catch(() => toast.error("Couldn't copy link"));
+  const rosterCount = employees.filter((e) => monthlyRate(e) > 0).length;
+  const earningYield = naviUsdc + scallopUsdc;
+
+  const activityQuery = useQuery({
+    queryKey: ["activity", onChainPoolId ?? "all"],
+    refetchInterval: 10000,
+    queryFn: () => readRecentActivity(client, onChainPoolId ?? null),
+  });
+
+  const showConnect = !wallet;
+  const showCreateOrg = !!wallet && !api.orgQuery.isLoading && !org;
+
+  return (
+    <div className="mx-auto w-full max-w-[1320px] px-4 py-5 sm:px-6 sm:py-6">
+      <div className="mb-5 flex items-end justify-between">
+        <div>
+          <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">
+            {org ? org.name : "Overview"}
+          </h1>
+          <p className="mt-0.5 text-[13px] text-[var(--sw-text-muted)]">
+            Streaming payroll · live on Sui mainnet
+          </p>
+        </div>
+      </div>
+
+      {showConnect && <ConnectPrompt />}
+      {showCreateOrg && <CreateOrgCard onCreated={() => api.orgQuery.refetch()} api={api} wallet={wallet!} />}
+
+      <DashboardGrid>
+        {/* Left */}
+        <Column className="lg:col-span-3">
+          <StatCard
+            icon={<Wallet className="size-[18px]" strokeWidth={2} />}
+            label="Total in Pool"
+            value={totalInPool}
+            caption="Idle + earning yield"
+          />
+          <NumberStatCard
+            icon={<Users className="size-[18px]" strokeWidth={2} />}
+            label="Active Streams"
+            value={rosterCount}
+            caption={`$${totalMonthly.toFixed(2)} / month committed`}
+          />
+          <CompositionCard idle={idleUsdc} navi={naviUsdc} scallop={scallopUsdc} total={totalInPool} />
+        </Column>
+
+        {/* Center */}
+        <Column className="lg:col-span-5">
+          <StreamedHeroCard
+            funded={funded}
+            streamedBaseRaw={streamedBaseRaw}
+            weeklyRaw={weeklyRaw}
+            anchorAt={anchorAt}
+            monthly={totalMonthly}
+          />
+          <PayrollAnalyticsCard employees={employees} totalMonthly={totalMonthly} />
+        </Column>
+
+        {/* Right */}
+        <Column className="lg:col-span-4">
+          <RecentActivityCard activity={activityQuery.data} loading={activityQuery.isLoading} />
+          <FundPayrollCTA />
+          <YieldCard earning={earningYield} yields={api.yieldsQuery.data?.quotes} />
+        </Column>
+      </DashboardGrid>
+    </div>
+  );
+}
+
+/* ── Gates ────────────────────────────────────────────────────────────── */
+
+function ConnectPrompt() {
+  return (
+    <div className="mb-4 flex flex-col items-start gap-4 rounded-[22px] border border-[var(--sw-border)] bg-[var(--sw-card)] p-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <IconChip className="size-11">
+          <Wallet className="size-5" strokeWidth={2} />
+        </IconChip>
+        <div>
+          <p className="text-[15px] font-semibold text-[var(--sw-text)]">Connect your wallet</p>
+          <p className="text-[13px] text-[var(--sw-text-muted)]">
+            Connect a Sui wallet to manage your organization and payroll streams.
+          </p>
+        </div>
+      </div>
+      <ConnectModal
+        trigger={
+          <button className="rounded-full bg-[var(--sw-mint)] px-5 py-2.5 text-[13px] font-semibold text-black transition-colors hover:bg-[#cef77f]">
+            Connect wallet
+          </button>
+        }
+      />
+    </div>
+  );
+}
+
+function CreateOrgCard({
+  api,
+  wallet,
+  onCreated,
+}: {
+  api: ReturnType<typeof useOrgPool>["api"];
+  wallet: string;
+  onCreated: () => void;
+}) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function handleCreate() {
+    if (!name.trim()) return;
+    setBusy(true);
+    try {
+      await api.ensureOrg(name.trim());
+      toast.success("Organization created");
+      setName("");
+      await qc.invalidateQueries({ queryKey: ["org", wallet] });
+      onCreated();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <section className="dx-overview">
-      <header className="dx-header">
-        <div>
-          <h1 className="dx-welcome-title">Welcome back, Alex 👋</h1>
-          <p className="dx-welcome-sub">
-            Manage your global workforce, payroll, and compliance—all in one place.
-          </p>
-        </div>
-        <label className="dx-search">
-          <Icon name="search" size={18} strokeWidth={2.2} />
-          <input placeholder="Search employees, payroll..." aria-label="Search" />
-          <span className="dx-kbd">⌘ K</span>
-        </label>
-      </header>
-
-      <div className="dx-grid">
-        <div className="dx-col">
-          <div className="dx-card dx-card-tracker">
-            <div className="dx-tracker-head">
-              <div className="dx-card-head">
-                <span className="dx-card-title">
-                  <Icon name="info" size={15} strokeWidth={2.3} />
-                  Payments Tracker
-                </span>
-              </div>
-
-              <div className="dx-stat-grid">
-                <div className="dx-stat">
-                  <div className="dx-stat-top">
-                    <span>Payment due</span>
-                    <Icon name="warningFill" size={18} />
-                  </div>
-                  <div className="dx-stat-value">$54.87</div>
-                  <div className="dx-stat-sub">USD · 01 invoice</div>
-                </div>
-                <div className="dx-stat">
-                  <div className="dx-stat-top">
-                    <span>Awaiting funds</span>
-                    <Icon name="bankFill" size={18} />
-                  </div>
-                  <div className="dx-stat-value">$3.5M</div>
-                  <div className="dx-stat-sub">USD · 02 Payments</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="dx-section-label dx-invoice-label">Pending invoices details</div>
-            <div className="dx-alert">
-              <div className="dx-alert-title">
-                <Icon name="warningFill" size={18} />
-                Payment due
-              </div>
-              <p className="dx-alert-text">
-                The following invoices must be paid before Dec 22nd 2026 to avoid
-                possible complications or delays to payroll
-              </p>
-            </div>
-
-            <div className="dx-due-row">
-              <UsdcLogo size={32} />
-              <div className="dx-due-main">
-                <div className="dx-due-title">229 invoices due</div>
-                <div className="dx-due-meta">
-                  Due date: <b>Dec 22nd 2025</b>
-                </div>
-              </div>
-              <Link href="/dashboard/payments" className="dx-btn-primary">
-                Review and Pay
-              </Link>
-            </div>
-          </div>
-
-          <div className="dx-card dx-quick-card">
-            <div className="dx-section-label">Quick Access</div>
-            <QuickRow
-              icon="workerFill"
-              chip="dx-chip-orange"
-              title="Add a worker"
-              sub="Add a new worker to your organization"
-              href="/dashboard/customers"
-            />
-            <QuickRow
-              icon="expenseFill"
-              chip="dx-chip-purple"
-              title="Add expenses or other adjustments"
-              sub="Add worker adjustments individually or bulk upload entries."
-              href="/dashboard/payments"
-            />
-            <QuickRow
-              icon="milestoneFill"
-              chip="dx-chip-blue"
-              title="Add milestones"
-              sub="Add milestones for a single worker or bulk upload for multiple workers"
-              href="/dashboard/products"
-            />
-          </div>
-        </div>
-
-        <div className="dx-col">
-          <div className="dx-card dx-pad dx-cycles-card">
-            <div className="dx-card-head">
-              <span className="dx-card-title">Cycles Tracker</span>
-              <button className="dx-pill" type="button">
-                Manage <Icon name="chevronDown" size={13} strokeWidth={2.4} />
-              </button>
-            </div>
-
-            <CyclesChart />
-          </div>
-
-          <div className="dx-card dx-pad">
-            <div className="dx-card-head dx-top-card-head">
-              <div>
-                <div className="dx-card-title">For you today</div>
-                <div className="dx-card-sub">To-dos that require your attention</div>
-              </div>
-              <button className="dx-pill" type="button">
-                Manage <Icon name="chevronDown" size={13} strokeWidth={2.4} />
-              </button>
-            </div>
-
-            <TodoRow
-              icon={<Icon name="dataFill" size={22} />}
-              chip="dx-chip-orange"
-
-              title="Data Updates"
-              sub="Latest platform changes requiring your attention."
-              href="/dashboard/settings"
-            />
-            <TodoRow
-              icon={<Icon name="submissionFill" size={22} />}
-              chip="dx-chip-green"
-
-              title="Contractors' Submissions"
-              sub="New contractor documents ready for review."
-              href="/dashboard/customers"
-            />
-            <TodoRow
-              icon={<Icon name="expenseFill" size={22} />}
-              chip="dx-chip-yellow"
-
-              title="Expense Approvals"
-              sub="Pending expense requests awaiting your approval."
-              href="/dashboard/payments"
-            />
-          </div>
-        </div>
-
-        <div className="dx-col dx-col-3">
-          <div className="dx-card dx-earn">
-            <div className="dx-earn-top">
-              <span className="dx-earn-pill">Get 1,500 and give 500!</span>
-              <Flower size={142} />
-              <h2 className="dx-earn-title">Earn Referrals</h2>
-              <p className="dx-earn-subtitle">Refer businesses and earn rewards.</p>
-            </div>
-
-            <div className="dx-section-label dx-how-label">How it works:</div>
-            <div className="dx-steps">
-              <div className="dx-step">
-                <span className="dx-step-num">1</span>
-                Invite A Business To Explore Fello
-              </div>
-              <div className="dx-step">
-                <span className="dx-step-num">2</span>
-                Your Referral Signs Up And Connects With Deel
-              </div>
-              <div className="dx-step">
-                <span className="dx-step-num">3</span>
-                Earn Rewards Through Successful Referrals.
-              </div>
-            </div>
-
-            <div className="dx-link-field">
-              <span className="dx-link-url">{REFERRAL_URL}</span>
-              <button className="dx-btn-dark" onClick={copyReferralLink} type="button">
-                Copy Link <Icon name="link" size={14} strokeWidth={2.2} />
-              </button>
-            </div>
-          </div>
-
-          {/* Promo card hidden for now — kept intact for later use.
-          {showPromo && (
-            <div className="dx-card dx-pad dx-promo-card">
-              <div className="dx-promo-head">
-                <span className="dx-card-title">Maximize your Deel experience</span>
-                <button
-                  className="dx-promo-close"
-                  onClick={() => setShowPromo(false)}
-                  type="button"
-                  aria-label="Dismiss"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="dx-promo-inner">
-                <span className="dx-quick-icon dx-chip-orange">
-                  <Icon name="team" size={20} strokeWidth={2.1} />
-                </span>
-                <div className="dx-promo-text">
-                  <div className="dx-quick-title">Manage your global team</div>
-                  <div className="dx-quick-sub">Centralized scalable people management.</div>
-                </div>
-                <Link href="/dashboard/customers" className="dx-btn-primary">
-                  Explore
-                </Link>
-              </div>
-              <div className="dx-promo-note">
-                <Icon name="info" size={13} strokeWidth={2.2} />
-                Centralized scalable people management.
-              </div>
-            </div>
-          )}
-          */}
-
-          <div className="dx-card dx-pad">
-            <div className="dx-card-head dx-top-card-head">
-              <div>
-                <div className="dx-card-title">Payroll Requests</div>
-                <div className="dx-card-sub">Payroll requests for Dec cycle.</div>
-              </div>
-              <button className="dx-pill" type="button">
-                Wayne Enterpris... <Icon name="chevronDown" size={13} strokeWidth={2.4} />
-              </button>
-            </div>
-
-            <RequestRow
-              icon="giftFill"
-              chip="dx-chip-yellow"
-              title="Bonus Payout Request"
-              sub="Bonus request pending approval."
-              badge="Pending"
-              badgeClass="dx-badge-pending"
-            />
-            <RequestRow
-              icon="uploadFill"
-              chip="dx-chip-purple"
-              title="Bulk Upload Processed"
-              sub="Payroll entries uploaded and verified successfully."
-              badge="Completed"
-              badgeClass="dx-badge-done"
-            />
-          </div>
-        </div>
+    <div className="mb-4 rounded-[22px] border border-[var(--sw-border)] bg-[var(--sw-card)] p-6">
+      <p className="text-[15px] font-semibold text-[var(--sw-text)]">Create your organization</p>
+      <p className="mt-1 text-[13px] text-[var(--sw-text-muted)]">
+        Onboard your org to start streaming payroll on Sui mainnet.
+      </p>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Acme Inc."
+          className="flex-1 rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-4 py-2.5 text-[14px] text-[var(--sw-text)] outline-none placeholder:text-[var(--sw-text-dim)] focus:border-[var(--sw-border-strong)]"
+        />
+        <button
+          onClick={handleCreate}
+          disabled={busy || !name.trim()}
+          className="rounded-xl bg-[var(--sw-mint)] px-5 py-2.5 text-[13px] font-semibold text-black transition-colors hover:bg-[#cef77f] disabled:opacity-50"
+        >
+          Create organization
+        </button>
       </div>
-    </section>
+    </div>
   );
 }
 
-// Official USDC coin mark (static asset in /public).
-function UsdcLogo({ size = 32 }: { size?: number }) {
-  return (
-    <img
-      className="dx-usdc"
-      src="/usdc.svg"
-      width={size}
-      height={size}
-      alt="USDC"
-    />
-  );
-}
+/* ── Cards ────────────────────────────────────────────────────────────── */
 
-function QuickRow({
+function StatCard({
   icon,
-  chip,
-  title,
-  sub,
-  href,
+  label,
+  value,
+  caption,
 }: {
-  icon: Parameters<typeof Icon>[0]["name"];
-  chip: string;
-  title: string;
-  sub: string;
-  href: string;
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  caption: string;
 }) {
   return (
-    <Link href={href} className="dx-quick-row">
-      <span className={`dx-quick-icon ${chip}`}>
-        <Icon name={icon} size={19} strokeWidth={2.1} />
-      </span>
-      <div>
-        <div className="dx-quick-title">{title}</div>
-        <div className="dx-quick-sub">{sub}</div>
+    <SweemCard className="flex flex-col justify-between">
+      <div className="flex items-center gap-3">
+        <IconChip>{icon}</IconChip>
+        <CardLabel>{label}</CardLabel>
       </div>
+      <div className="mt-7">
+        <MoneyValue value={value} className="text-[30px] leading-none" />
+        <p className="mt-2 text-[12.5px] text-[var(--sw-text-dim)]">{caption}</p>
+      </div>
+    </SweemCard>
+  );
+}
+
+function NumberStatCard({
+  icon,
+  label,
+  value,
+  caption,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  caption: string;
+}) {
+  return (
+    <SweemCard className="flex flex-col justify-between">
+      <div className="flex items-center gap-3">
+        <IconChip>{icon}</IconChip>
+        <CardLabel>{label}</CardLabel>
+      </div>
+      <div className="mt-7">
+        <span className="text-[30px] font-semibold leading-none tracking-[-0.02em] tabular-nums">
+          {value}
+        </span>
+        <p className="mt-2 text-[12.5px] text-[var(--sw-text-dim)]">{caption}</p>
+      </div>
+    </SweemCard>
+  );
+}
+
+const COMPOSITION = [
+  { key: "idle", label: "Idle (liquid)", color: "var(--sw-text)" },
+  { key: "navi", label: "Navi", color: "var(--sw-mint)" },
+  { key: "scallop", label: "Scallop", color: "var(--sw-lavender)" },
+] as const;
+
+function CompositionCard({
+  idle,
+  navi,
+  scallop,
+  total,
+}: {
+  idle: number;
+  navi: number;
+  scallop: number;
+  total: number;
+}) {
+  const values: Record<string, number> = { idle, navi, scallop };
+  const sum = total > 0 ? total : 1;
+
+  return (
+    <SweemCard className="flex flex-col">
+      <CardLabel className="text-[15px] text-[var(--sw-text)]">Pool Composition</CardLabel>
+      <div className="mt-4 flex h-[26px] items-stretch gap-1.5">
+        {COMPOSITION.map((seg, i) => (
+          <motion.span
+            key={seg.key}
+            initial={{ flexGrow: 0, opacity: 0 }}
+            animate={{ flexGrow: Math.max(values[seg.key] / sum, total > 0 ? 0 : 0.33), opacity: 1 }}
+            transition={{ delay: 0.3 + i * 0.1, type: "spring", stiffness: 200, damping: 24 }}
+            style={{ flexBasis: 0, background: seg.color }}
+            className="rounded-full"
+          />
+        ))}
+      </div>
+      <ul className="mt-5 flex flex-col gap-3">
+        {COMPOSITION.map((seg) => (
+          <li key={seg.key} className="flex items-center justify-between">
+            <span className="flex items-center gap-2.5">
+              <span className="size-2.5 rounded-full" style={{ background: seg.color }} />
+              <span className="text-[13px] text-[var(--sw-text-muted)]">{seg.label}</span>
+            </span>
+            <span className="text-[13px] font-semibold tabular-nums text-[var(--sw-text)]">
+              ${values[seg.key].toFixed(2)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </SweemCard>
+  );
+}
+
+function StreamedHeroCard({
+  funded,
+  streamedBaseRaw,
+  weeklyRaw,
+  anchorAt,
+  monthly,
+}: {
+  funded: boolean;
+  streamedBaseRaw: bigint;
+  weeklyRaw: bigint;
+  anchorAt: number;
+  monthly: number;
+}) {
+  return (
+    <SweemCard className="flex flex-col">
+      <div className="flex items-start justify-between">
+        <CardLabel className="text-[15px] text-[var(--sw-text)]">Total Streamed</CardLabel>
+        <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(196,245,107,0.14)] px-2 py-1 text-[12px] font-semibold text-[var(--sw-mint)]">
+          <span className={funded ? "size-1.5 rounded-full bg-[var(--sw-mint)]" : "size-1.5 rounded-full bg-[var(--sw-text-dim)]"} />
+          {funded ? "Streaming live" : "Idle"}
+        </span>
+      </div>
+
+      <div className="mt-7 flex items-start font-semibold tracking-[-0.02em] tabular-nums">
+        <span className="text-[40px] leading-none">$</span>
+        <span className="text-[40px] leading-none">
+          {funded ? (
+            <LiveTicker
+              baseRaw={streamedBaseRaw}
+              rateRaw={weeklyRaw}
+              periodMs={BigInt(WEEK_MS)}
+              anchorAt={anchorAt}
+              active={funded}
+            />
+          ) : (
+            "0.00"
+          )}
+        </span>
+      </div>
+      <p className="mt-2.5 text-[13px] text-[var(--sw-text-muted)]">
+        ${monthly.toFixed(2)} / month committed across all streams
+      </p>
+
+      {/* Decorative equalizer */}
+      <div className="mt-6 flex h-12 items-end justify-between">
+        {Array.from({ length: 46 }).map((_, i) => {
+          const h = 0.4 + 0.4 * Math.abs(Math.sin(i * 0.9 + 0.5)) + 0.18 * Math.abs(Math.cos(i * 0.37));
+          return (
+            <motion.span
+              key={i}
+              initial={{ height: "10%", opacity: 0 }}
+              animate={{ height: `${Math.min(1, h) * 100}%`, opacity: 1 }}
+              transition={{ delay: 0.35 + i * 0.01, type: "spring", stiffness: 220, damping: 18 }}
+              className={`w-[4px] rounded-full ${i < 25 ? "bg-[var(--sw-mint)]" : "bg-[var(--sw-lavender)]"}`}
+            />
+          );
+        })}
+      </div>
+    </SweemCard>
+  );
+}
+
+function PayrollAnalyticsCard({
+  employees,
+  totalMonthly,
+}: {
+  employees: Employee[];
+  totalMonthly: number;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const data = employees
+    .map((e) => ({ name: e.alias, value: monthlyRate(e) }))
+    .filter((d) => d.value > 0)
+    .slice(0, 12);
+
+  return (
+    <SweemCard className="flex flex-col">
+      <div className="flex items-start justify-between">
+        <div>
+          <CardLabel className="text-[15px] text-[var(--sw-text)]">Monthly Payroll</CardLabel>
+          <MoneyValue value={totalMonthly} className="mt-1.5 block text-[26px] leading-none" />
+        </div>
+        <span className="rounded-full border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-3 py-1.5 text-[12px] text-[var(--sw-text-muted)]">
+          Per employee
+        </span>
+      </div>
+
+      <div className="mt-4 h-[190px] w-full">
+        {data.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-[13px] text-[var(--sw-text-dim)]">
+            Add employees to see the payroll breakdown.
+          </div>
+        ) : mounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 4, bottom: 0, left: 4 }}>
+              <XAxis
+                dataKey="name"
+                axisLine={false}
+                tickLine={false}
+                interval={0}
+                tick={{ fill: "var(--sw-text-dim)", fontSize: 11 }}
+                tickMargin={10}
+              />
+              <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)", radius: 8 }} content={<PayrollTooltip />} />
+              <Bar dataKey="value" radius={[8, 8, 8, 8]} maxBarSize={26} animationDuration={900} animationBegin={200}>
+                {data.map((_, i) => (
+                  <Cell key={i} fill={i % 2 === 0 ? "var(--sw-mint)" : "var(--sw-lavender)"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : null}
+      </div>
+    </SweemCard>
+  );
+}
+
+function PayrollTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: { payload: { name: string; value: number } }[];
+}) {
+  if (!active || !payload?.length) return null;
+  const { name, value } = payload[0].payload;
+  return (
+    <div className="rounded-xl border border-[var(--sw-border-strong)] bg-[#1c1c20] px-3 py-2 shadow-xl">
+      <p className="text-[10px] uppercase tracking-wide text-[var(--sw-text-dim)]">{name}</p>
+      <p className="text-[13px] font-semibold text-white">${value.toFixed(2)}/mo</p>
+    </div>
+  );
+}
+
+function RecentActivityCard({
+  activity,
+  loading,
+}: {
+  activity?: ActivityRow[];
+  loading: boolean;
+}) {
+  const rows = (activity ?? []).slice(0, 4);
+
+  return (
+    <SweemCard className="flex flex-col">
+      <CardLabel className="text-[15px] text-[var(--sw-text)]">Recent Activity</CardLabel>
+
+      {rows.length === 0 ? (
+        <div className="mt-4 flex h-[120px] items-center justify-center text-[13px] text-[var(--sw-text-dim)]">
+          {loading ? "Loading on-chain activity…" : "No recent activity yet."}
+        </div>
+      ) : (
+        <ul className="mt-3 flex flex-col">
+          {rows.map((a, i) => {
+            const isClaim = a.kind === "claim";
+            return (
+              <motion.li
+                key={`${a.digest}-${i}`}
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 + i * 0.07, type: "spring", stiffness: 240, damping: 24 }}
+                className="flex items-center gap-3 border-t border-[var(--sw-border)] py-3 first:border-t-0"
+              >
+                <span
+                  className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${
+                    isClaim ? "bg-[rgba(188,174,247,0.14)] text-[var(--sw-lavender)]" : "bg-[rgba(196,245,107,0.14)] text-[var(--sw-mint)]"
+                  }`}
+                >
+                  {isClaim ? <ArrowUpRight className="size-4" strokeWidth={2.2} /> : <Coins className="size-4" strokeWidth={2.2} />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13.5px] font-medium text-[var(--sw-text)]">
+                    {isClaim ? "Salary claim" : "Pool funded"}
+                  </p>
+                  <p className="truncate font-mono text-[11.5px] text-[var(--sw-text-dim)]">
+                    {shortAddr(a.party)}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-[13.5px] font-semibold tabular-nums text-[var(--sw-text)]">
+                    ${fromRaw(a.amountRaw).toFixed(2)}
+                  </p>
+                  <a
+                    href={EXPLORER_TX(a.digest)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-[var(--sw-mint)] hover:underline"
+                  >
+                    View
+                  </a>
+                </div>
+              </motion.li>
+            );
+          })}
+        </ul>
+      )}
+    </SweemCard>
+  );
+}
+
+function FundPayrollCTA() {
+  return (
+    <Link href="/dashboard/payments" className="block">
+      <SweemCard accent className="flex items-center gap-4 py-4">
+        <IconChip tone="dark" className="size-10 bg-black/85 text-[var(--sw-mint)]">
+          <Zap className="size-[18px]" strokeWidth={2} />
+        </IconChip>
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-semibold text-black">Fund payroll</p>
+          <p className="truncate text-[12.5px] font-medium text-black/65">
+            Fund the pool and start streaming salaries per second
+          </p>
+        </div>
+        <ChevronRight className="size-5 text-black/80" strokeWidth={2.4} />
+      </SweemCard>
     </Link>
   );
 }
 
-function TodoRow({
-  icon,
-  chip,
-  title,
-  sub,
-  href,
-}: {
-  icon: ReactNode;
-  chip: string;
-  title: string;
-  sub: string;
-  href: string;
-}) {
+function YieldCard({ earning, yields }: { earning: number; yields?: YieldQuote[] }) {
+  const navi = yields?.find((y) => y.protocol === "NAVI")?.apy;
+  const scallop = yields?.find((y) => y.protocol === "SCALLOP")?.apy;
+
   return (
-    <div className="dx-todo-row">
-      <span className={`dx-todo-icon ${chip}`}>{icon}</span>
-      <div className="dx-todo-main">
-        <div className="dx-todo-title">{title}</div>
-        <div className="dx-todo-sub">{sub}</div>
+    <SweemCard className="flex flex-col">
+      <div className="flex items-center justify-between">
+        <CardLabel className="text-[15px] text-[var(--sw-text)]">Earning Yield</CardLabel>
+        <Receipt className="size-4 text-[var(--sw-text-dim)]" strokeWidth={2} />
       </div>
-      <Link href={href} className="dx-btn-outline">
-        Review
-      </Link>
-    </div>
+      <MoneyValue value={earning} className="mt-2 text-[26px] leading-none" />
+      <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">Idle funds invested in lending protocols</p>
+
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <YieldChip name="Navi" apy={navi} accent="var(--sw-mint)" />
+        <YieldChip name="Scallop" apy={scallop} accent="var(--sw-lavender)" />
+      </div>
+    </SweemCard>
   );
 }
 
-function RequestRow({
-  icon,
-  chip,
-  title,
-  sub,
-  badge,
-  badgeClass,
-}: {
-  icon: Parameters<typeof Icon>[0]["name"];
-  chip: string;
-  title: string;
-  sub: string;
-  badge: string;
-  badgeClass: string;
-}) {
+function YieldChip({ name, apy, accent }: { name: string; apy?: number; accent: string }) {
   return (
-    <div className="dx-todo-row dx-request-row">
-      <span className={`dx-todo-icon ${chip}`}>
-        <Icon name={icon} size={19} strokeWidth={2.1} />
-      </span>
-      <div className="dx-todo-main">
-        <div className="dx-todo-title">{title}</div>
-        <div className="dx-todo-sub">{sub}</div>
+    <div className="rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] p-3">
+      <div className="flex items-center gap-2">
+        <span className="size-2 rounded-full" style={{ background: accent }} />
+        <span className="text-[12.5px] text-[var(--sw-text-muted)]">{name}</span>
       </div>
-      <span className={`dx-badge ${badgeClass}`}>{badge}</span>
+      <p className="mt-1.5 text-[18px] font-semibold tabular-nums text-[var(--sw-text)]">
+        {apy == null ? "—" : `${apy.toFixed(2)}%`}
+      </p>
+      <p className="text-[10.5px] text-[var(--sw-text-dim)]">Live APR</p>
     </div>
   );
 }
-
