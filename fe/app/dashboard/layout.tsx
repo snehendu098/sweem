@@ -1,12 +1,16 @@
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
-import { DashboardProviders } from "@/components/dashboard/providers";
+import { RequireWallet } from "@/components/dashboard/require-wallet";
 import { Toaster } from "sonner";
 
+// Wallet/react-query providers live in the root layout (global). The dashboard
+// shares the marketing site's typeface (Poppins) so type + weights match `/`.
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <DashboardProviders>
-      <DashboardLayout>{children}</DashboardLayout>
+    <>
+      <RequireWallet>
+        <DashboardLayout>{children}</DashboardLayout>
+      </RequireWallet>
       <Toaster richColors position="bottom-right" />
-    </DashboardProviders>
+    </>
   );
 }

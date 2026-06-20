@@ -1,6 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ProtocolLogo } from "@/components/sweem-ui/protocol-logo";
+import { TokenIcon } from "@/components/sweem-ui/token-icon";
+import { TOKENS, type TokenConfig, type TokenSymbol } from "@/lib/tokens";
+import { cn } from "@/lib/utils";
 
 // Small shared primitives for the Sweem dashboard screens. Styled with the
 // `.sweem-*` classes (which reuse the dashboard --dash-* tokens) so everything
@@ -83,7 +88,38 @@ export function Modal({
   );
 }
 
+// Quick-fill chips (25/50/75/Max) that pick a fraction of `max` for an amount field.
+export function PercentChips({
+  max,
+  onPick,
+  disabled,
+}: {
+  max: number;
+  onPick: (value: number) => void;
+  disabled?: boolean;
+}) {
+  const opts = [25, 50, 75, 100];
+  const pick = (pct: number) =>
+    onPick(pct === 100 ? max : Math.round(((max * pct) / 100) * 1e6) / 1e6);
+  return (
+    <div className="flex gap-1.5">
+      {opts.map((pct) => (
+        <button
+          key={pct}
+          type="button"
+          disabled={disabled || max <= 0}
+          onClick={() => pick(pct)}
+          className="rounded-lg border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-2.5 py-1 text-[11.5px] font-medium text-[var(--sw-text-muted)] transition-colors hover:border-[var(--sw-border-strong)] hover:text-[var(--sw-text)] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {pct === 100 ? "Max" : `${pct}%`}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // One protocol leg inside an invest dialog: checkbox + live APR + amount input.
+// Pass `max` to show 25/50/75/Max quick-fill chips beneath the input.
 export function ProtocolRow({
   name,
   apy,
@@ -91,6 +127,8 @@ export function ProtocolRow({
   onChecked,
   amount,
   onAmount,
+  symbol = "USDC",
+  max,
 }: {
   name: string;
   apy: number | undefined;
@@ -98,30 +136,119 @@ export function ProtocolRow({
   onChecked: (v: boolean) => void;
   amount: string;
   onAmount: (v: string) => void;
+  symbol?: string;
+  max?: number;
 }) {
   return (
-    <div className="sweem-protocol-row">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChecked(e.target.checked)}
-        className="h-4 w-4 accent-[var(--dash-blue)]"
+    <div
+      className={cn(
+        "rounded-2xl border p-4 transition-colors",
+        checked
+          ? "border-[var(--sw-border-strong)] bg-[var(--sw-card-inset)]"
+          : "border-[var(--sw-border)] bg-[var(--sw-card-inset)] hover:border-[var(--sw-border-strong)]"
+      )}
+    >
+      <label className="flex cursor-pointer items-center gap-3">
+        <ProtocolLogo name={name} size={36} className="rounded-xl" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-semibold leading-tight text-[color:var(--dash-text)]">{name}</p>
+          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[rgba(196,245,107,0.14)] px-2 py-0.5 text-[11px] font-semibold text-[var(--sw-mint)]">
+            <span className="size-1.5 rounded-full bg-[var(--sw-mint)]" />
+            {apy == null ? "Live APR …" : `Live APR ${apy.toFixed(2)}%`}
+          </span>
+        </div>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChecked(e.target.checked)}
+          className="h-[18px] w-[18px] shrink-0 accent-[var(--dash-blue)]"
+        />
+      </label>
+
+      <AnimatePresence initial={false}>
+        {checked && (
+          <motion.div
+            key="amount"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 320, damping: 30, opacity: { duration: 0.15 } }}
+            className="overflow-hidden"
+          >
+            <div className="mt-3 flex flex-col gap-2.5">
+              <div className="flex items-center gap-2 rounded-xl border border-[var(--sw-border)] bg-[#1b1b1f] px-3 py-2.5 transition-colors focus-within:border-[var(--sw-mint)]/60 focus-within:ring-2 focus-within:ring-[rgba(196,245,107,0.15)]">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  className="min-w-0 flex-1 bg-transparent text-[18px] font-semibold tabular-nums text-[var(--sw-text)] outline-none placeholder:font-normal placeholder:text-[var(--sw-text-muted)]"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => onAmount(e.target.value)}
+                />
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--sw-card-inset)] px-2.5 py-1 text-[12px] font-semibold text-[var(--sw-text)]">
+                  {TOKENS[symbol as TokenSymbol] && (
+                    <TokenIcon token={TOKENS[symbol as TokenSymbol]} size={15} />
+                  )}
+                  {symbol}
+                </span>
+              </div>
+              {max != null && <PercentChips max={max} onPick={(v) => onAmount(String(v))} />}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// One destination leg in the Claim & Allocate sheet: a colored dot, label/hint,
+// a percentage slider, and the live token amount. Pass no `onPct` to render a
+// read-only row (used for the wallet leg, which is the implicit remainder).
+export function AllocRow({
+  label,
+  hint,
+  pct,
+  amount,
+  symbol = "USDC",
+  accent,
+  onPct,
+  max = 100,
+}: {
+  label: string;
+  hint?: ReactNode;
+  pct: number;
+  amount: number;
+  symbol?: string;
+  accent?: string;
+  onPct?: (v: number) => void;
+  max?: number;
+}) {
+  return (
+    <div className="sweem-protocol-row items-center">
+      <span
+        className="size-2.5 shrink-0 rounded-full"
+        style={{ background: accent ?? "var(--sw-text)" }}
       />
-      <div className="flex-1">
-        <p className="text-[13px] font-semibold text-[color:var(--dash-text)]">{name}</p>
-        <p className="sweem-hint">
-          Live APR: {apy == null ? "…" : `${apy.toFixed(2)}%`}
-        </p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-semibold text-[color:var(--dash-text)]">{label}</p>
+        {hint ? <p className="sweem-hint">{hint}</p> : null}
+        {onPct ? (
+          <input
+            type="range"
+            min={0}
+            max={max}
+            value={pct}
+            onChange={(e) => onPct(Number(e.target.value))}
+            className="mt-2 w-full accent-[var(--dash-blue)]"
+          />
+        ) : null}
       </div>
-      <input
-        type="number"
-        inputMode="decimal"
-        className="sweem-input w-32"
-        placeholder="USDC"
-        value={amount}
-        disabled={!checked}
-        onChange={(e) => onAmount(e.target.value)}
-      />
+      <div className="shrink-0 text-right">
+        <p className="text-[13px] font-semibold tabular-nums text-[color:var(--dash-text)]">
+          {pct}%
+        </p>
+        <p className="sweem-hint tabular-nums">{amount.toFixed(2)} {symbol}</p>
+      </div>
     </div>
   );
 }

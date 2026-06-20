@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { ConnectModal } from "@mysten/dapp-kit";
-import { toast } from "sonner";
 import { motion } from "framer-motion";
 import {
   Bar,
   BarChart,
   Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -25,7 +26,8 @@ import {
 } from "lucide-react";
 
 import type { Employee, YieldQuote } from "@/lib/api";
-import { WEEK_MS, fromRaw, EXPLORER_TX } from "@/lib/sweem";
+import { WEEK_MS, EXPLORER_TX } from "@/lib/sweem";
+import { TOKENS, fromRaw, type TokenConfig, type TokenSymbol } from "@/lib/tokens";
 import { readRecentActivity, type ActivityRow } from "@/lib/tx";
 import {
   CardLabel,
@@ -33,58 +35,66 @@ import {
   MoneyValue,
   SweemCard,
 } from "@/components/sweem-ui/primitives";
+import { TokenIcon } from "@/components/sweem-ui/token-icon";
 import { Column, DashboardGrid } from "@/components/sweem-ui/dashboard-grid";
+import { ProtocolLogo } from "@/components/sweem-ui/protocol-logo";
 import { useOrgPool } from "./use-org-pool";
+import { TokenTabs } from "./token-tabs";
 import { LiveTicker } from "./live-ticker";
 import { monthlyRate, shortAddr } from "./helpers";
 
 export function OrgHome() {
-  const pool = useOrgPool();
   const {
     wallet,
     api,
     client,
     org,
     employees,
-    funded,
-    idleUsdc,
-    naviUsdc,
-    scallopUsdc,
-    totalInPool,
-    totalMonthly,
-    streamedBaseRaw,
-    weeklyRaw,
-    onChainPoolId,
+    poolStateByToken,
+    poolIdByToken,
+    totalMonthlyByToken,
     anchorAt,
-  } = pool;
+  } = useOrgPool();
 
-  const rosterCount = employees.filter((e) => monthlyRate(e) > 0).length;
-  const earningYield = naviUsdc + scallopUsdc;
+  const [symbol, setSymbol] = useState<TokenSymbol>("USDC");
+  const token = TOKENS[symbol];
+  const st = poolStateByToken[symbol];
+  const totalMonthly = totalMonthlyByToken[symbol];
+  const poolId = poolIdByToken[symbol];
+
+  const rosterCount = employees.filter((e) => monthlyRate(e, symbol) > 0).length;
+  const earningYield = st.navi + st.scallop;
 
   const activityQuery = useQuery({
-    queryKey: ["activity", onChainPoolId ?? "all"],
+    queryKey: ["activity", symbol, poolId ?? "all"],
     refetchInterval: 10000,
-    queryFn: () => readRecentActivity(client, onChainPoolId ?? null),
+    queryFn: () => readRecentActivity(client, poolId ?? null, 8, [token]),
   });
 
+  const router = useRouter();
   const showConnect = !wallet;
-  const showCreateOrg = !!wallet && !api.orgQuery.isLoading && !org;
+  // Wallet connected but no org → send to onboarding. Fires only while unregistered.
+  const needsOnboarding = !!wallet && !api.orgQuery.isLoading && !org;
+
+  useEffect(() => {
+    if (needsOnboarding) router.push("/onboarding");
+  }, [needsOnboarding, router]);
 
   return (
-    <div className="mx-auto w-full max-w-[1320px] px-4 py-5 sm:px-6 sm:py-6">
-      <div className="mb-5 flex items-end justify-between">
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">
-            {org ? org.name : "Overview"}
-          </h1>
-          <p className="mt-0.5 text-[13px] text-[var(--sw-text-muted)]">
-            Streaming payroll · live on Sui mainnet
-          </p>
-        </div>
+    <div className="dashboard-content">
+      <div className="mb-5 flex items-center justify-between">
+        <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">
+          {org ? org.name : "Overview"}
+        </h1>
+        <TokenTabs value={symbol} onChange={setSymbol} />
       </div>
 
       {showConnect && <ConnectPrompt />}
-      {showCreateOrg && <CreateOrgCard onCreated={() => api.orgQuery.refetch()} api={api} wallet={wallet!} />}
+      {needsOnboarding && (
+        <div className="mb-4 rounded-[22px] border border-[var(--sw-border)] bg-[var(--sw-card)] p-6 text-[13px] text-[var(--sw-text-muted)]">
+          Taking you to setup…
+        </div>
+      )}
 
       <DashboardGrid>
         {/* Left */}
@@ -92,35 +102,62 @@ export function OrgHome() {
           <StatCard
             icon={<Wallet className="size-[18px]" strokeWidth={2} />}
             label="Total in Pool"
-            value={totalInPool}
+            value={st.totalInPool}
+            token={token}
             caption="Idle + earning yield"
           />
           <NumberStatCard
             icon={<Users className="size-[18px]" strokeWidth={2} />}
             label="Active Streams"
             value={rosterCount}
-            caption={`$${totalMonthly.toFixed(2)} / month committed`}
+            caption={
+              <span className="inline-flex items-center gap-1">
+                {totalMonthly.toFixed(2)}
+                <TokenIcon token={token} size={13} />
+                {symbol} / month committed
+              </span>
+            }
           />
-          <CompositionCard idle={idleUsdc} navi={naviUsdc} scallop={scallopUsdc} total={totalInPool} />
+          <CompositionCard
+            idle={st.idle}
+            navi={st.navi}
+            scallop={st.scallop}
+            total={st.totalInPool}
+            token={token}
+            className="grow"
+          />
         </Column>
 
         {/* Center */}
         <Column className="lg:col-span-5">
           <StreamedHeroCard
-            funded={funded}
-            streamedBaseRaw={streamedBaseRaw}
-            weeklyRaw={weeklyRaw}
+            funded={st.funded}
+            streamedBaseRaw={st.streamedBaseRaw}
+            weeklyRaw={st.weeklyRaw}
             anchorAt={anchorAt}
             monthly={totalMonthly}
+            token={token}
           />
-          <PayrollAnalyticsCard employees={employees} totalMonthly={totalMonthly} />
+          <PayrollAnalyticsCard
+            employees={employees}
+            totalMonthly={totalMonthly}
+            token={token}
+            className="grow"
+          />
         </Column>
 
         {/* Right */}
         <Column className="lg:col-span-4">
           <RecentActivityCard activity={activityQuery.data} loading={activityQuery.isLoading} />
           <FundPayrollCTA />
-          <YieldCard earning={earningYield} yields={api.yieldsQuery.data?.quotes} />
+          <YieldCard
+            earning={earningYield}
+            naviAmount={st.navi}
+            scallopAmount={st.scallop}
+            yields={api.yieldsByToken.data?.[symbol]?.quotes}
+            token={token}
+            className="grow"
+          />
         </Column>
       </DashboardGrid>
     </div>
@@ -154,71 +191,19 @@ function ConnectPrompt() {
   );
 }
 
-function CreateOrgCard({
-  api,
-  wallet,
-  onCreated,
-}: {
-  api: ReturnType<typeof useOrgPool>["api"];
-  wallet: string;
-  onCreated: () => void;
-}) {
-  const qc = useQueryClient();
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function handleCreate() {
-    if (!name.trim()) return;
-    setBusy(true);
-    try {
-      await api.ensureOrg(name.trim());
-      toast.success("Organization created");
-      setName("");
-      await qc.invalidateQueries({ queryKey: ["org", wallet] });
-      onCreated();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="mb-4 rounded-[22px] border border-[var(--sw-border)] bg-[var(--sw-card)] p-6">
-      <p className="text-[15px] font-semibold text-[var(--sw-text)]">Create your organization</p>
-      <p className="mt-1 text-[13px] text-[var(--sw-text-muted)]">
-        Onboard your org to start streaming payroll on Sui mainnet.
-      </p>
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Acme Inc."
-          className="flex-1 rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-4 py-2.5 text-[14px] text-[var(--sw-text)] outline-none placeholder:text-[var(--sw-text-dim)] focus:border-[var(--sw-border-strong)]"
-        />
-        <button
-          onClick={handleCreate}
-          disabled={busy || !name.trim()}
-          className="rounded-xl bg-[var(--sw-mint)] px-5 py-2.5 text-[13px] font-semibold text-black transition-colors hover:bg-[#cef77f] disabled:opacity-50"
-        >
-          Create organization
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /* ── Cards ────────────────────────────────────────────────────────────── */
 
 function StatCard({
   icon,
   label,
   value,
+  token,
   caption,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
+  token: TokenConfig;
   caption: string;
 }) {
   return (
@@ -228,7 +213,7 @@ function StatCard({
         <CardLabel>{label}</CardLabel>
       </div>
       <div className="mt-7">
-        <MoneyValue value={value} className="text-[30px] leading-none" />
+        <MoneyValue value={value} token={token} className="text-[30px] leading-none" />
         <p className="mt-2 text-[12.5px] text-[var(--sw-text-dim)]">{caption}</p>
       </div>
     </SweemCard>
@@ -244,7 +229,7 @@ function NumberStatCard({
   icon: React.ReactNode;
   label: string;
   value: number;
-  caption: string;
+  caption: React.ReactNode;
 }) {
   return (
     <SweemCard className="flex flex-col justify-between">
@@ -273,17 +258,21 @@ function CompositionCard({
   navi,
   scallop,
   total,
+  token,
+  className,
 }: {
   idle: number;
   navi: number;
   scallop: number;
   total: number;
+  token: TokenConfig;
+  className?: string;
 }) {
   const values: Record<string, number> = { idle, navi, scallop };
   const sum = total > 0 ? total : 1;
 
   return (
-    <SweemCard className="flex flex-col">
+    <SweemCard className={`flex flex-col ${className ?? ""}`}>
       <CardLabel className="text-[15px] text-[var(--sw-text)]">Pool Composition</CardLabel>
       <div className="mt-4 flex h-[26px] items-stretch gap-1.5">
         {COMPOSITION.map((seg, i) => (
@@ -297,15 +286,15 @@ function CompositionCard({
           />
         ))}
       </div>
-      <ul className="mt-5 flex flex-col gap-3">
+      <ul className="mt-5 flex flex-1 flex-col justify-between gap-3">
         {COMPOSITION.map((seg) => (
           <li key={seg.key} className="flex items-center justify-between">
             <span className="flex items-center gap-2.5">
-              <span className="size-2.5 rounded-full" style={{ background: seg.color }} />
+              <ProtocolLogo name={seg.label} size={18} accent={seg.color} />
               <span className="text-[13px] text-[var(--sw-text-muted)]">{seg.label}</span>
             </span>
             <span className="text-[13px] font-semibold tabular-nums text-[var(--sw-text)]">
-              ${values[seg.key].toFixed(2)}
+              {values[seg.key].toFixed(2)}
             </span>
           </li>
         ))}
@@ -320,12 +309,14 @@ function StreamedHeroCard({
   weeklyRaw,
   anchorAt,
   monthly,
+  token,
 }: {
   funded: boolean;
   streamedBaseRaw: bigint;
   weeklyRaw: bigint;
   anchorAt: number;
   monthly: number;
+  token: TokenConfig;
 }) {
   return (
     <SweemCard className="flex flex-col">
@@ -337,8 +328,8 @@ function StreamedHeroCard({
         </span>
       </div>
 
-      <div className="mt-7 flex items-start font-semibold tracking-[-0.02em] tabular-nums">
-        <span className="text-[40px] leading-none">$</span>
+      <div className="mt-7 flex items-center font-semibold tracking-[-0.02em] tabular-nums">
+        <TokenIcon token={token} size={32} className="mr-2" />
         <span className="text-[40px] leading-none">
           {funded ? (
             <LiveTicker
@@ -347,6 +338,7 @@ function StreamedHeroCard({
               periodMs={BigInt(WEEK_MS)}
               anchorAt={anchorAt}
               active={funded}
+              decimals={token.decimals}
             />
           ) : (
             "0.00"
@@ -354,7 +346,7 @@ function StreamedHeroCard({
         </span>
       </div>
       <p className="mt-2.5 text-[13px] text-[var(--sw-text-muted)]">
-        ${monthly.toFixed(2)} / month committed across all streams
+        {monthly.toFixed(2)} {token.symbol} / month committed across all streams
       </p>
 
       {/* Decorative equalizer */}
@@ -379,38 +371,48 @@ function StreamedHeroCard({
 function PayrollAnalyticsCard({
   employees,
   totalMonthly,
+  token,
+  className,
 }: {
   employees: Employee[];
   totalMonthly: number;
+  token: TokenConfig;
+  className?: string;
 }) {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   const data = employees
-    .map((e) => ({ name: e.alias, value: monthlyRate(e) }))
+    .map((e) => ({ name: e.alias, value: monthlyRate(e, token.symbol) }))
     .filter((d) => d.value > 0)
+    .sort((a, b) => b.value - a.value)
     .slice(0, 12);
 
   return (
-    <SweemCard className="flex flex-col">
+    <SweemCard className={`flex flex-col ${className ?? ""}`}>
       <div className="flex items-start justify-between">
         <div>
           <CardLabel className="text-[15px] text-[var(--sw-text)]">Monthly Payroll</CardLabel>
-          <MoneyValue value={totalMonthly} className="mt-1.5 block text-[26px] leading-none" />
+          <div className="mt-2">
+            <MoneyValue value={totalMonthly} token={token} className="text-[26px] leading-none" />
+          </div>
         </div>
         <span className="rounded-full border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-3 py-1.5 text-[12px] text-[var(--sw-text-muted)]">
           Per employee
         </span>
       </div>
 
-      <div className="mt-4 h-[190px] w-full">
+      <div className="mt-4 h-[200px] w-full flex-1">
         {data.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[13px] text-[var(--sw-text-dim)]">
             Add employees to see the payroll breakdown.
           </div>
         ) : mounted ? (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 10, right: 4, bottom: 0, left: 4 }}>
+            <BarChart data={data} margin={{ top: 22, right: 4, bottom: 0, left: 4 }} barCategoryGap="28%">
               <XAxis
                 dataKey="name"
                 axisLine={false}
@@ -419,8 +421,20 @@ function PayrollAnalyticsCard({
                 tick={{ fill: "var(--sw-text-dim)", fontSize: 11 }}
                 tickMargin={10}
               />
-              <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)", radius: 8 }} content={<PayrollTooltip />} />
-              <Bar dataKey="value" radius={[8, 8, 8, 8]} maxBarSize={26} animationDuration={900} animationBegin={200}>
+              <Tooltip
+                cursor={{ fill: "rgba(255,255,255,0.04)", radius: 8 }}
+                content={<PayrollTooltip symbol={token.symbol} />}
+              />
+              <Bar dataKey="value" radius={[8, 8, 8, 8]} maxBarSize={42} animationDuration={900} animationBegin={150}>
+                <LabelList
+                  dataKey="value"
+                  position="top"
+                  offset={8}
+                  formatter={(v) => Number(v ?? 0).toFixed(2)}
+                  fill="var(--sw-text-muted)"
+                  fontSize={11}
+                  fontWeight={600}
+                />
                 {data.map((_, i) => (
                   <Cell key={i} fill={i % 2 === 0 ? "var(--sw-mint)" : "var(--sw-lavender)"} />
                 ))}
@@ -436,16 +450,18 @@ function PayrollAnalyticsCard({
 function PayrollTooltip({
   active,
   payload,
+  symbol,
 }: {
   active?: boolean;
   payload?: { payload: { name: string; value: number } }[];
+  symbol?: string;
 }) {
   if (!active || !payload?.length) return null;
   const { name, value } = payload[0].payload;
   return (
     <div className="rounded-xl border border-[var(--sw-border-strong)] bg-[#1c1c20] px-3 py-2 shadow-xl">
       <p className="text-[10px] uppercase tracking-wide text-[var(--sw-text-dim)]">{name}</p>
-      <p className="text-[13px] font-semibold text-white">${value.toFixed(2)}/mo</p>
+      <p className="text-[13px] font-semibold text-white">{value.toFixed(2)} {symbol}/mo</p>
     </div>
   );
 }
@@ -494,10 +510,11 @@ function RecentActivityCard({
                     {shortAddr(a.party)}
                   </p>
                 </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-[13.5px] font-semibold tabular-nums text-[var(--sw-text)]">
-                    ${fromRaw(a.amountRaw).toFixed(2)}
-                  </p>
+                <div className="flex shrink-0 flex-col items-end gap-0.5">
+                  <span className="flex items-center gap-1 text-[13.5px] font-semibold tabular-nums text-[var(--sw-text)]">
+                    <TokenIcon token={a.token} size={14} />
+                    {fromRaw(a.token, a.amountRaw).toFixed(2)} {a.token.symbol}
+                  </span>
                   <a
                     href={EXPLORER_TX(a.digest)}
                     target="_blank"
@@ -519,7 +536,7 @@ function RecentActivityCard({
 function FundPayrollCTA() {
   return (
     <Link href="/dashboard/payments" className="block">
-      <SweemCard accent className="flex items-center gap-4 py-4">
+      <SweemCard accent hover className="flex items-center gap-4 py-4">
         <IconChip tone="dark" className="size-10 bg-black/85 text-[var(--sw-mint)]">
           <Zap className="size-[18px]" strokeWidth={2} />
         </IconChip>
@@ -535,38 +552,67 @@ function FundPayrollCTA() {
   );
 }
 
-function YieldCard({ earning, yields }: { earning: number; yields?: YieldQuote[] }) {
+function YieldCard({
+  earning,
+  naviAmount,
+  scallopAmount,
+  yields,
+  token,
+  className,
+}: {
+  earning: number;
+  naviAmount: number;
+  scallopAmount: number;
+  yields?: YieldQuote[];
+  token: TokenConfig;
+  className?: string;
+}) {
   const navi = yields?.find((y) => y.protocol === "NAVI")?.apy;
   const scallop = yields?.find((y) => y.protocol === "SCALLOP")?.apy;
 
   return (
-    <SweemCard className="flex flex-col">
+    <SweemCard className={`flex flex-col ${className ?? ""}`}>
       <div className="flex items-center justify-between">
         <CardLabel className="text-[15px] text-[var(--sw-text)]">Earning Yield</CardLabel>
         <Receipt className="size-4 text-[var(--sw-text-dim)]" strokeWidth={2} />
       </div>
-      <MoneyValue value={earning} className="mt-2 text-[26px] leading-none" />
+      <MoneyValue value={earning} token={token} className="mt-2 text-[26px] leading-none" />
       <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">Idle funds invested in lending protocols</p>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <YieldChip name="Navi" apy={navi} accent="var(--sw-mint)" />
-        <YieldChip name="Scallop" apy={scallop} accent="var(--sw-lavender)" />
+      <div className="mt-5 grid flex-1 grid-cols-2 gap-3">
+        <YieldChip name="Navi" amount={naviAmount} apy={navi} accent="var(--sw-mint)" />
+        <YieldChip name="Scallop" amount={scallopAmount} apy={scallop} accent="var(--sw-lavender)" />
       </div>
     </SweemCard>
   );
 }
 
-function YieldChip({ name, apy, accent }: { name: string; apy?: number; accent: string }) {
+function YieldChip({
+  name,
+  amount,
+  apy,
+  accent,
+}: {
+  name: string;
+  amount: number;
+  apy?: number;
+  accent: string;
+}) {
   return (
-    <div className="rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] p-3">
-      <div className="flex items-center gap-2">
-        <span className="size-2 rounded-full" style={{ background: accent }} />
-        <span className="text-[12.5px] text-[var(--sw-text-muted)]">{name}</span>
+    <div className="flex flex-col rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2">
+          <ProtocolLogo name={name} size={18} accent={accent} />
+          <span className="text-[12.5px] text-[var(--sw-text-muted)]">{name}</span>
+        </span>
+        <span className="text-[11px] font-semibold tabular-nums text-[var(--sw-text-muted)]">
+          {apy == null ? "—" : `${apy.toFixed(2)}%`}
+        </span>
       </div>
-      <p className="mt-1.5 text-[18px] font-semibold tabular-nums text-[var(--sw-text)]">
-        {apy == null ? "—" : `${apy.toFixed(2)}%`}
+      <p className="mt-2 text-[18px] font-semibold tabular-nums text-[var(--sw-text)]">
+        {amount.toFixed(2)}
       </p>
-      <p className="text-[10.5px] text-[var(--sw-text-dim)]">Live APR</p>
+      <p className="text-[10.5px] text-[var(--sw-text-dim)]">Invested · {apy == null ? "—" : `${apy.toFixed(2)}% APR`}</p>
     </div>
   );
 }

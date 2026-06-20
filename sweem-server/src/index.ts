@@ -5,6 +5,7 @@ import type { AppEnv } from './types'
 import orgRoutes     from './routes/orgs.routes'
 import vaultRoutes   from './routes/vaults.routes'
 import computeRoutes from './routes/compute.routes'
+import aiRoutes      from './routes/ai.routes'
 
 const app = new Hono<AppEnv>()
 
@@ -26,6 +27,7 @@ app.use('*', cors({
 app.route('/v1/orgs',    orgRoutes)
 app.route('/v1/vaults',  vaultRoutes)
 app.route('/v1/compute', computeRoutes)
+app.route('/v1/ai',      aiRoutes)
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) {

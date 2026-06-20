@@ -8,6 +8,7 @@
 import { useCurrentAccount, useSignPersonalMessage } from '@mysten/dapp-kit'
 import { useQuery } from '@tanstack/react-query'
 import { API_BASE } from './sweem'
+import { TOKEN_SYMBOLS, type TokenSymbol } from './tokens'
 
 function authMessage(): string {
   const rand = () => Math.random().toString(36).slice(2, 10)
@@ -21,8 +22,14 @@ export interface RateInput {
 }
 
 export interface Org {
-  wallet: string
+  // NOTE: the backend serializes drizzle rows in camelCase (walletAddress, …).
+  wallet?: string
+  walletAddress?: string
   name: string
+  logoUrl?: string | null
+  email?: string | null
+  emailVerifiedAt?: string | null
+  createdAt?: string
 }
 
 export interface Group {
@@ -68,8 +75,50 @@ export interface YieldResponse {
 export interface AddEmployeeInput {
   alias: string
   wallet_address: string
+  email?: string | null
   group_id?: string
   rates: RateInput[]
+}
+
+// ----- onboarding: CSV import + email verification -----
+
+export type MappingField =
+  | 'alias'
+  | 'wallet_address'
+  | 'email'
+  | 'rate_amount'
+  | 'rate_type'
+  | 'group'
+
+export type ColumnMapping = Record<MappingField, string | null>
+
+export interface MapCsvResult {
+  mapping: ColumnMapping
+  defaults: { token: 'USDC'; rate_type: 'MONTHLY' }
+  source: 'heuristic' | 'ai' | 'mixed'
+}
+
+export interface BulkEmployeeInput {
+  alias: string
+  wallet_address: string
+  email?: string | null
+  group_id?: string | null
+  group_name?: string | null
+  rates?: RateInput[]
+}
+
+export interface BulkResult {
+  created: number
+  skipped: { wallet_address: string; reason: string }[]
+  errors: { wallet_address: string; message: string }[]
+}
+
+export interface StartEmailResult {
+  ok: boolean
+  sent: boolean
+  sendError?: string
+  devMode?: boolean
+  code?: string
 }
 
 export function useSweemApi() {
@@ -77,19 +126,28 @@ export function useSweemApi() {
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage()
   const wallet = account?.address
 
-  async function authedFetch(path: string, method: string, body?: unknown) {
+  // Sign one auth message. The backend validates signature + timestamp (60s TTL)
+  // with no nonce, so a single signature can authorize a burst of requests — which
+  // is what bulk operations reuse to avoid one wallet popup per row.
+  type AuthCreds = { message: string; signature: string }
+  async function signAuth(): Promise<AuthCreds> {
     if (!account) throw new Error('Connect a wallet first')
     const message = authMessage()
     const { signature } = await signPersonalMessage({
       message: new TextEncoder().encode(message),
     })
+    return { message, signature }
+  }
+
+  async function sendAuthed(creds: AuthCreds, path: string, method: string, body?: unknown) {
+    if (!account) throw new Error('Connect a wallet first')
     const res = await fetch(`${API_BASE}${path}`, {
       method,
       headers: {
         'Content-Type': 'application/json',
         'X-Wallet-Address': account.address,
-        'X-Signature': signature,
-        'X-Message': message,
+        'X-Signature': creds.signature,
+        'X-Message': creds.message,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     })
@@ -100,6 +158,10 @@ export function useSweemApi() {
       status: res.status,
       data: res.status === 204 ? null : await res.json().catch(() => null),
     }
+  }
+
+  async function authedFetch(path: string, method: string, body?: unknown) {
+    return sendAuthed(await signAuth(), path, method, body)
   }
 
   async function get<T>(path: string): Promise<T> {
@@ -134,9 +196,18 @@ export function useSweemApi() {
     queryFn: () => get<Employee[]>(`/v1/orgs/${wallet}/employees`),
   })
 
-  const yieldsQuery = useQuery<YieldResponse>({
-    queryKey: ['yields', 'USDC'],
-    queryFn: () => get<YieldResponse>(`/v1/compute/yields?token=USDC`),
+  // One yields fetch per supported token, surfaced as a map keyed by symbol.
+  const yieldsByToken = useQuery<Record<TokenSymbol, YieldResponse>>({
+    queryKey: ['yields', TOKEN_SYMBOLS],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        TOKEN_SYMBOLS.map(async (symbol) => {
+          const res = await get<YieldResponse>(`/v1/compute/yields?token=${symbol}`)
+          return [symbol, res] as const
+        }),
+      )
+      return Object.fromEntries(entries) as Record<TokenSymbol, YieldResponse>
+    },
   })
 
   return {
@@ -146,7 +217,7 @@ export function useSweemApi() {
     orgQuery,
     groupsQuery,
     employeesQuery,
-    yieldsQuery,
+    yieldsByToken,
 
     // ----- writes -----
     // Idempotent org create (409 = already exists → fine).
@@ -162,17 +233,60 @@ export function useSweemApi() {
     addEmployee: (w: string, input: AddEmployeeInput) =>
       authedFetch(`/v1/orgs/${w}/employees`, 'POST', input),
 
+    // Replace an employee's group and/or full per-token rate set (PUT semantics:
+    // the `rates` array fully replaces the employee's existing rates).
+    updateEmployee: (
+      w: string,
+      employeeId: string,
+      input: { group_id?: string | null; rates: RateInput[] },
+    ) => authedFetch(`/v1/orgs/${w}/employees/${employeeId}`, 'PUT', input),
+
+    // Update many employees' rates with a SINGLE wallet signature (reused across
+    // every PUT). Each entry's `rates` fully replaces that employee's rate set.
+    bulkUpdateRates: async (
+      w: string,
+      updates: { employeeId: string; rates: RateInput[] }[],
+    ) => {
+      if (updates.length === 0) return
+      const creds = await signAuth()
+      await Promise.all(
+        updates.map((u) =>
+          sendAuthed(creds, `/v1/orgs/${w}/employees/${u.employeeId}`, 'PUT', { rates: u.rates }),
+        ),
+      )
+    },
+
     listEmployees: (w: string) => get<Employee[]>(`/v1/orgs/${w}/employees`),
 
-    createPool: (w: string, onChainPoolId: string) =>
+    // ----- onboarding -----
+    // AI-infer CSV column mapping (sends only headers + a few sample rows).
+    mapCsv: async (headers: string[], samples: string[][]): Promise<MapCsvResult> => {
+      const { data } = await authedFetch('/v1/ai/map-csv', 'POST', { headers, samples })
+      return data as MapCsvResult
+    },
+
+    bulkAddEmployees: async (w: string, employees: BulkEmployeeInput[]): Promise<BulkResult> => {
+      const { data } = await authedFetch(`/v1/orgs/${w}/employees/bulk`, 'POST', { employees })
+      return data as BulkResult
+    },
+
+    startEmailVerification: async (w: string, email: string): Promise<StartEmailResult> => {
+      const { data } = await authedFetch(`/v1/orgs/${w}/email/start`, 'POST', { email })
+      return data as StartEmailResult
+    },
+
+    confirmEmail: (w: string, code: string) =>
+      authedFetch(`/v1/orgs/${w}/email/confirm`, 'POST', { code }),
+
+    createPool: (w: string, token: TokenSymbol, onChainPoolId: string) =>
       authedFetch(`/v1/orgs/${w}/pools`, 'POST', {
-        token: 'USDC',
+        token,
         on_chain_pool_id: onChainPoolId,
       }),
 
     listPools: (w: string) => get<Pool[]>(`/v1/orgs/${w}/pools`),
 
-    getYields: () => get<YieldResponse>(`/v1/compute/yields?token=USDC`),
+    getYields: (token: TokenSymbol) => get<YieldResponse>(`/v1/compute/yields?token=${token}`),
 
     // Best-effort org-name lookup for the employee portal. NEVER throws — if the
     // backend is down/unreachable the employee UI just falls back to the address.

@@ -2,7 +2,7 @@ import { Reveal } from "@/components/motion/reveal";
 import { Section } from "@/components/layout/section";
 import { SectionHeading } from "@/components/layout/section-heading";
 import { ImagePlaceholder } from "@/components/ui/image-placeholder";
-import { Button } from "@/components/ui/button";
+import { LaunchAppButton } from "@/components/shared/launch-app-button";
 
 function LockIcon() {
   return (
@@ -28,12 +28,9 @@ export function ConfidenceSection() {
         }
         description="Deposit once, stream to your team, and route idle cash to yield — automated and onchain."
         actions={
-          <Button
-            asChild
-            className="rounded-full bg-brand-dark px-6 text-white hover:bg-brand-dark/90"
-          >
-            <a href="/dashboard">Launch Dashboard</a>
-          </Button>
+          <LaunchAppButton className="inline-flex h-10 items-center rounded-full bg-brand-dark px-6 text-[13px] font-medium text-white transition-colors hover:bg-brand-dark/90">
+            Launch Dashboard
+          </LaunchAppButton>
         }
       />
 

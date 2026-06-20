@@ -376,7 +376,8 @@ a:hover {
 }
 
 .dashboard-content {
-  width: min(100%, 1350px);
+  width: min(100%, 80rem); /* max-w-7xl */
+  margin-inline: auto;
   padding: 28px 26px 64px;
 }
 
@@ -2103,9 +2104,9 @@ a.brand-nav-heading {
 }
 
 /* Bigger screens / external monitors — widen the content so it isn't stuck left */
+/* Capped at max-w-7xl (80rem) across all breakpoints; only padding grows */
 @media (min-width: 1536px) {
   .dashboard-content {
-    width: min(100%, 1560px);
     padding: 32px 40px 72px;
   }
   .dashboard-analytics {
@@ -2113,12 +2114,6 @@ a.brand-nav-heading {
   }
   .dashboard-card-grid {
     gap: 18px;
-  }
-}
-
-@media (min-width: 1920px) {
-  .dashboard-content {
-    width: min(100%, 1760px);
   }
 }
 
@@ -2249,12 +2244,65 @@ a.brand-nav-heading {
 
 /* ─── Hero ─────────────────────────────────────────────── */
 
+/* dashboard-dark base */
 .hero-bg {
-  background: #3d8bd4;
+  background: #0a0c10;
+}
+
+/* ledger grid floor — glows up from beneath the dashboard image */
+.hero-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(125% 80% at 50% 118%, #000 0%, rgba(0, 0, 0, 0.4) 38%, transparent 62%);
+  mask-image: radial-gradient(125% 80% at 50% 118%, #000 0%, rgba(0, 0, 0, 0.4) 38%, transparent 62%);
 }
 
 .hero-copy {
   animation: heroReveal 680ms ease both;
+}
+
+/* live equalizer bars (StreamMeter) */
+.eq-bar {
+  transform-origin: bottom;
+  animation: eqPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes eqPulse {
+  0%,
+  100% {
+    transform: scaleY(0.62);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eq-bar {
+    animation: none;
+  }
+}
+
+/* flowing highlight for an active salary stream */
+.stream-flow {
+  animation: streamFlow 1.8s linear infinite;
+}
+
+@keyframes streamFlow {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-flow {
+    animation: none;
+  }
 }
 
 /* ─── CTA Banner ────────────────────────────────────────── */
@@ -2804,8 +2852,26 @@ button.dashboard-screen-action:disabled {
 }
 
 .sw-dash :is(.dashboard-data-table-wrap, .dashboard-table-wrap) {
-  background: transparent !important;
+  background: var(--sw-card) !important;
   border-color: var(--sw-border) !important;
+}
+
+/* Match Overview's rounded --sw-card cards: legacy panels use a 12px radius
+   which reads as "cornered" next to the 22px Overview cards. */
+.sw-dash :is(
+  .sweem-card,
+  .sweem-tablecard,
+  .dashboard-data-table-wrap,
+  .dashboard-table-wrap,
+  .sweem-gate,
+  .dashboard-action-card,
+  .dashboard-stat-card,
+  .dashboard-settings-card
+) {
+  border-radius: 22px !important;
+}
+.sw-dash .sweem-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 .sw-dash :is(.dashboard-data-table th, .dashboard-table th) {
   color: var(--sw-text-muted) !important;
@@ -2817,6 +2883,12 @@ button.dashboard-screen-action:disabled {
 }
 .sw-dash .dashboard-data-empty-shaded {
   background: var(--sw-bg-2) !important;
+}
+
+/* Stat tiles (employee portal vault, etc.) — were hardcoded white */
+.sw-dash .sweem-stat {
+  background: var(--sw-card-inset) !important;
+  border-color: var(--sw-border) !important;
 }
 
 /* Headings + body text */

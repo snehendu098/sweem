@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
@@ -23,9 +24,9 @@ type NavItem = {
 
 const navItems: readonly NavItem[] = [
   { icon: "home", label: "Overview", href: "/dashboard" },
+  { icon: "sparkle", label: "Sweem AI", href: "/dashboard/ai" },
   { icon: "payment", label: "Payroll", href: "/dashboard/payments" },
   { icon: "customer", label: "Employees", href: "/dashboard/customers" },
-  { icon: "link", label: "Employee portal", href: "/dashboard/portal" },
   { icon: "link", label: "Payment links", href: "/dashboard/payment-links" },
   {
     icon: "billing",
@@ -50,13 +51,15 @@ const navItems: readonly NavItem[] = [
       { label: "Documentation", href: "/dashboard/developer/documentation" },
       { label: "API reference", href: "/dashboard/developer/api-reference" },
       { label: "Get test tokens", href: "/dashboard/developer/test-tokens" },
+      { label: "Components", href: "/dashboard/developer/component" },
     ],
   },
   { icon: "settings", label: "Settings", href: "/dashboard/settings" },
 ] satisfies readonly NavItem[];
 
 function getNavItemState(item: NavItem, pathname: string) {
-  const isExpanded = item.matchPrefix ? pathname.startsWith(item.matchPrefix) : false;
+  const matchesSub = item.subitems?.some((s) => pathname === s.href) ?? false;
+  const isExpanded = matchesSub || (item.matchPrefix ? pathname.startsWith(item.matchPrefix) : false);
   const isActive =
     item.href === "/dashboard"
       ? pathname === item.href
@@ -125,10 +128,13 @@ export function Sidebar({
       )}
     >
       {/* Brand */}
-      <div className="flex h-[60px] items-center gap-2.5 px-5">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--sw-mint)] text-[15px] font-bold text-black">
-          S
-        </span>
+      <div
+        className={cn(
+          "flex h-[60px] items-center gap-2.5",
+          collapsed ? "justify-center px-0" : "px-5"
+        )}
+      >
+        <Image src="/sweem.png" alt="Sweem" width={26} height={26} priority className="h-[26px] w-[26px] shrink-0" />
         {!collapsed && (
           <>
             <span className="text-[17px] font-semibold tracking-[-0.02em]">Sweem</span>
@@ -177,7 +183,7 @@ export function Sidebar({
                   <span className="relative z-10 flex flex-1 items-center justify-between">
                     <span>{item.label}</span>
                     {item.badge && (
-                      <span className="rounded-md bg-[rgba(196,245,107,0.16)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--sw-mint)]">
+                      <span className="rounded bg-[rgba(196,245,107,0.16)] px-1 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide text-[var(--sw-mint)]">
                         {item.badge}
                       </span>
                     )}
@@ -194,7 +200,12 @@ export function Sidebar({
       </nav>
 
       {/* Collapse */}
-      <div className="hidden border-t border-[var(--sw-border)] p-3 lg:block">
+      <div
+        className={cn(
+          "hidden border-t border-[var(--sw-border)] p-3 lg:flex",
+          collapsed && "justify-center"
+        )}
+      >
         <button
           type="button"
           onClick={onToggle}

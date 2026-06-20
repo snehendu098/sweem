@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Navbar } from "./navbar";
 import { Sidebar } from "./sidebar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -31,7 +32,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <Navbar onMenuClick={() => setSidebarOpen((open) => !open)} />
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:!block">
+          <main>{children}</main>
+        </ScrollArea>
       </div>
     </div>
   );

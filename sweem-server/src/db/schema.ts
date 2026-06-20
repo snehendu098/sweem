@@ -7,6 +7,21 @@ export const organizations = pgTable('organizations', {
   walletAddress: text('wallet_address').primaryKey(),
   name: text('name').notNull(),
   logoUrl: text('logo_url'),
+  // Org admin contact email. `email` is set on verification-start (unverified);
+  // `emailVerifiedAt` is stamped once the OTP is confirmed.
+  email: text('email'),
+  emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Pending email OTP, one row per org (upserted on each start). Stores only the
+// HASH of the code (sha256 of salt+code), never the code itself.
+export const emailVerifications = pgTable('email_verifications', {
+  orgWallet: text('org_wallet').primaryKey().references(() => organizations.walletAddress, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  codeHash: text('code_hash').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  attempts: numeric('attempts').notNull().default('0'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -41,6 +56,8 @@ export const employees = pgTable('employees', {
   walletAddress: text('wallet_address').notNull(),
   orgWallet: text('org_wallet').notNull(),
   groupId: uuid('group_id'),
+  // Optional employee email captured from CSV import. Unverified (informational).
+  email: text('email'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   foreignKey({ columns: [t.orgWallet], foreignColumns: [organizations.walletAddress], name: 'emp_org_fk' }).onDelete('cascade'),

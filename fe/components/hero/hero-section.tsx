@@ -1,4 +1,6 @@
 import { Navbar } from "@/components/layout/navbar";
+import { LaunchAppButton } from "@/components/shared/launch-app-button";
+import { SpotlightNew } from "@/components/ui/aceternity/spotlight-new";
 
 const avatars = ["#e7a880", "#c9a7e2", "#f1c48a"];
 
@@ -20,24 +22,22 @@ export function HeroSection() {
   return (
     <section
       id="home"
-      className="hero-bg relative overflow-hidden px-6 pb-32 pt-28 text-white md:px-12 lg:px-24"
+      className="hero-bg relative overflow-hidden px-6 pb-10 pt-28 text-white md:px-12 lg:px-24"
     >
-      {/* bg1 background image */}
+      {/* spotlight beams — subtle lime + violet */}
+      <SpotlightNew />
+      {/* ledger grid floor beneath the dashboard */}
+      <div aria-hidden className="hero-grid pointer-events-none absolute inset-0 z-0" />
+      {/* ground the dashboard image on the dark base */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/bg1.png')" }}
-      />
-      {/* legibility + blend into the page below */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0a0a0b]/35 via-transparent to-[#0a0a0b]/75"
+        className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-transparent via-transparent to-[#0a0c10]"
       />
 
       <Navbar />
 
       <div className="hero-copy relative z-10 mx-auto flex max-w-3xl flex-col items-center text-center">
-        <div className="mb-6 flex items-center gap-2 rounded-full border border-white/30 bg-white/15 py-1 pl-1 pr-3.5 text-[12px] font-medium backdrop-blur-md">
+        <div className="mb-6 flex items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pl-1 pr-3.5 text-[12px] font-medium text-white/90 backdrop-blur-md">
           <div className="flex -space-x-1.5">
             {avatars.map((color) => (
               <span
@@ -56,23 +56,19 @@ export function HeroSection() {
           Earn on Idle Cash.
         </h1>
 
-        <p className="mt-5 max-w-[470px] text-[14px] leading-6 text-white/85 md:text-[15px]">
-          Pay your team by the second on Sui. Idle payroll auto-earns yield
-          across Navi and Scallop — runway you can see, salaries employees claim
-          anytime.
+        <p className="mt-5 max-w-[470px] text-[14px] leading-6 text-white/70 md:text-[15px]">
+          Pay your team by the second on Sui. Idle payroll auto-earns yield —
+          claimable anytime.
         </p>
 
         <div className="mt-8 flex items-center gap-3">
-          <a
-            href="/dashboard"
-            className="rounded-full bg-white px-6 py-3 text-[14px] font-semibold text-[#101828] shadow-[0_14px_30px_rgba(4,40,80,0.18)]"
-          >
+          <LaunchAppButton className="rounded-full bg-[#c4f56b] px-6 py-3 text-[14px] font-semibold text-[#0a0c10]">
             Launch Dashboard
-          </a>
-          <button className="grid size-12 place-items-center rounded-full border border-white/40 bg-white/15 backdrop-blur-md">
+          </LaunchAppButton>
+          <button className="grid size-12 place-items-center rounded-full border border-white/12 bg-white/5 backdrop-blur-md">
             <GoogleIcon />
           </button>
-          <button className="grid size-12 place-items-center rounded-full border border-white/40 bg-white/15 backdrop-blur-md">
+          <button className="grid size-12 place-items-center rounded-full border border-white/12 bg-white/5 backdrop-blur-md">
             <AppleIcon />
           </button>
         </div>

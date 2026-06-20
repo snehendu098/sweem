@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 
 const RATE = 0.0188; // USD per ms (visual only)
-const BARS = [0.4, 0.7, 0.5, 0.9, 0.6, 1, 0.55, 0.8, 0.45, 0.95, 0.65, 0.85];
+
+// Dashboard "Total Streamed" equalizer — lime first half, violet second half.
+const EQ = Array.from({ length: 32 }, (_, i) =>
+  Math.min(1, 0.4 + 0.4 * Math.abs(Math.sin(i * 0.9 + 0.5)) + 0.18 * Math.abs(Math.cos(i * 0.37))),
+);
+const MINT = "linear-gradient(to top, #a6e34a, #c4f56b)";
+const LAVENDER = "linear-gradient(to top, #a593f2, #bcaef7)";
 
 /**
  * Live "salary streaming" visual for the Core Service feature tile: a counter
@@ -50,13 +56,17 @@ export function StreamMeter() {
         <span className="text-[18px] text-text-muted">.{cents}</span>
       </div>
 
-      {/* equalizer */}
-      <div className="mt-4 flex h-10 items-end gap-1.5">
-        {BARS.map((h, i) => (
+      {/* equalizer — dashboard lime/violet bars */}
+      <div className="mt-5 flex h-12 items-end gap-[3px]">
+        {EQ.map((h, i) => (
           <span
             key={i}
-            className="stream-bar w-full rounded-full bg-gradient-to-t from-brand/40 to-brand"
-            style={{ height: `${h * 100}%`, animationDelay: `${i * 0.11}s` }}
+            className="eq-bar flex-1 rounded-[2px]"
+            style={{
+              height: `${h * 100}%`,
+              background: i < EQ.length / 2 ? MINT : LAVENDER,
+              animationDelay: `${(i % 8) * 0.12}s`,
+            }}
           />
         ))}
       </div>
