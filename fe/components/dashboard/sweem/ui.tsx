@@ -1,8 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { ProtocolLogo } from "@/components/sweem-ui/protocol-logo";
-import type { TokenConfig } from "@/lib/tokens";
+import { TokenIcon } from "@/components/sweem-ui/token-icon";
+import { TOKENS, type TokenConfig, type TokenSymbol } from "@/lib/tokens";
+import { cn } from "@/lib/utils";
 
 // Small shared primitives for the Sweem dashboard screens. Styled with the
 // `.sweem-*` classes (which reuse the dashboard --dash-* tokens) so everything
@@ -137,36 +140,63 @@ export function ProtocolRow({
   max?: number;
 }) {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="sweem-protocol-row">
+    <div
+      className={cn(
+        "rounded-2xl border p-4 transition-colors",
+        checked
+          ? "border-[var(--sw-border-strong)] bg-[var(--sw-card-inset)]"
+          : "border-[var(--sw-border)] bg-[var(--sw-card-inset)] hover:border-[var(--sw-border-strong)]"
+      )}
+    >
+      <label className="flex cursor-pointer items-center gap-3">
+        <ProtocolLogo name={name} size={36} className="rounded-xl" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-semibold leading-tight text-[color:var(--dash-text)]">{name}</p>
+          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[rgba(196,245,107,0.14)] px-2 py-0.5 text-[11px] font-semibold text-[var(--sw-mint)]">
+            <span className="size-1.5 rounded-full bg-[var(--sw-mint)]" />
+            {apy == null ? "Live APR …" : `Live APR ${apy.toFixed(2)}%`}
+          </span>
+        </div>
         <input
           type="checkbox"
           checked={checked}
           onChange={(e) => onChecked(e.target.checked)}
-          className="h-4 w-4 accent-[var(--dash-blue)]"
+          className="h-[18px] w-[18px] shrink-0 accent-[var(--dash-blue)]"
         />
-        <ProtocolLogo name={name} size={26} />
-        <div className="flex-1">
-          <p className="text-[13px] font-semibold text-[color:var(--dash-text)]">{name}</p>
-          <p className="sweem-hint">
-            Live APR: {apy == null ? "…" : `${apy.toFixed(2)}%`}
-          </p>
-        </div>
-        <input
-          type="number"
-          inputMode="decimal"
-          className="sweem-input w-32"
-          placeholder={symbol}
-          value={amount}
-          disabled={!checked}
-          onChange={(e) => onAmount(e.target.value)}
-        />
-      </div>
-      {max != null && checked && (
-        <div className="flex justify-end">
-          <PercentChips max={max} onPick={(v) => onAmount(String(v))} />
-        </div>
-      )}
+      </label>
+
+      <AnimatePresence initial={false}>
+        {checked && (
+          <motion.div
+            key="amount"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 320, damping: 30, opacity: { duration: 0.15 } }}
+            className="overflow-hidden"
+          >
+            <div className="mt-3 flex flex-col gap-2.5">
+              <div className="flex items-center gap-2 rounded-xl border border-[var(--sw-border)] bg-[#1b1b1f] px-3 py-2.5 transition-colors focus-within:border-[var(--sw-mint)]/60 focus-within:ring-2 focus-within:ring-[rgba(196,245,107,0.15)]">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  className="min-w-0 flex-1 bg-transparent text-[18px] font-semibold tabular-nums text-[var(--sw-text)] outline-none placeholder:font-normal placeholder:text-[var(--sw-text-muted)]"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => onAmount(e.target.value)}
+                />
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--sw-card-inset)] px-2.5 py-1 text-[12px] font-semibold text-[var(--sw-text)]">
+                  {TOKENS[symbol as TokenSymbol] && (
+                    <TokenIcon token={TOKENS[symbol as TokenSymbol]} size={15} />
+                  )}
+                  {symbol}
+                </span>
+              </div>
+              {max != null && <PercentChips max={max} onPick={(v) => onAmount(String(v))} />}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

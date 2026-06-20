@@ -10,6 +10,7 @@ import {
   Bar,
   BarChart,
   Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -109,7 +110,13 @@ export function OrgHome() {
             icon={<Users className="size-[18px]" strokeWidth={2} />}
             label="Active Streams"
             value={rosterCount}
-            caption={`${totalMonthly.toFixed(2)} ${symbol} / month committed`}
+            caption={
+              <span className="inline-flex items-center gap-1">
+                {totalMonthly.toFixed(2)}
+                <TokenIcon token={token} size={13} />
+                {symbol} / month committed
+              </span>
+            }
           />
           <CompositionCard
             idle={st.idle}
@@ -283,7 +290,7 @@ function CompositionCard({
         {COMPOSITION.map((seg) => (
           <li key={seg.key} className="flex items-center justify-between">
             <span className="flex items-center gap-2.5">
-              <span className="size-2.5 rounded-full" style={{ background: seg.color }} />
+              <ProtocolLogo name={seg.label} size={18} accent={seg.color} />
               <span className="text-[13px] text-[var(--sw-text-muted)]">{seg.label}</span>
             </span>
             <span className="text-[13px] font-semibold tabular-nums text-[var(--sw-text)]">
@@ -381,6 +388,7 @@ function PayrollAnalyticsCard({
   const data = employees
     .map((e) => ({ name: e.alias, value: monthlyRate(e, token.symbol) }))
     .filter((d) => d.value > 0)
+    .sort((a, b) => b.value - a.value)
     .slice(0, 12);
 
   return (
@@ -397,14 +405,24 @@ function PayrollAnalyticsCard({
         </span>
       </div>
 
-      <div className="mt-4 h-[190px] w-full flex-1">
+      <div className="mt-4 h-[200px] w-full flex-1">
         {data.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[13px] text-[var(--sw-text-dim)]">
             Add employees to see the payroll breakdown.
           </div>
         ) : mounted ? (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 10, right: 4, bottom: 0, left: 4 }}>
+            <BarChart data={data} margin={{ top: 22, right: 4, bottom: 0, left: 4 }} barCategoryGap="28%">
+              <defs>
+                <linearGradient id="payroll-mint" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--sw-mint)" stopOpacity={1} />
+                  <stop offset="100%" stopColor="var(--sw-mint)" stopOpacity={0.35} />
+                </linearGradient>
+                <linearGradient id="payroll-lav" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--sw-lavender)" stopOpacity={1} />
+                  <stop offset="100%" stopColor="var(--sw-lavender)" stopOpacity={0.35} />
+                </linearGradient>
+              </defs>
               <XAxis
                 dataKey="name"
                 axisLine={false}
@@ -413,10 +431,22 @@ function PayrollAnalyticsCard({
                 tick={{ fill: "var(--sw-text-dim)", fontSize: 11 }}
                 tickMargin={10}
               />
-              <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)", radius: 8 }} content={<PayrollTooltip symbol={token.symbol} />} />
-              <Bar dataKey="value" radius={[8, 8, 8, 8]} maxBarSize={26} animationDuration={900} animationBegin={200}>
+              <Tooltip
+                cursor={{ fill: "rgba(255,255,255,0.04)", radius: 8 }}
+                content={<PayrollTooltip symbol={token.symbol} />}
+              />
+              <Bar dataKey="value" radius={[8, 8, 8, 8]} maxBarSize={42} animationDuration={900} animationBegin={150}>
+                <LabelList
+                  dataKey="value"
+                  position="top"
+                  offset={8}
+                  formatter={(v: number) => v.toFixed(2)}
+                  fill="var(--sw-text-muted)"
+                  fontSize={11}
+                  fontWeight={600}
+                />
                 {data.map((_, i) => (
-                  <Cell key={i} fill={i % 2 === 0 ? "var(--sw-mint)" : "var(--sw-lavender)"} />
+                  <Cell key={i} fill={i % 2 === 0 ? "url(#payroll-mint)" : "url(#payroll-lav)"} />
                 ))}
               </Bar>
             </BarChart>
@@ -490,10 +520,11 @@ function RecentActivityCard({
                     {shortAddr(a.party)}
                   </p>
                 </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-[13.5px] font-semibold tabular-nums text-[var(--sw-text)]">
+                <div className="flex shrink-0 flex-col items-end gap-0.5">
+                  <span className="flex items-center gap-1 text-[13.5px] font-semibold tabular-nums text-[var(--sw-text)]">
+                    <TokenIcon token={a.token} size={14} />
                     {fromRaw(a.token, a.amountRaw).toFixed(2)} {a.token.symbol}
-                  </p>
+                  </span>
                   <a
                     href={EXPLORER_TX(a.digest)}
                     target="_blank"
@@ -515,7 +546,12 @@ function RecentActivityCard({
 function FundPayrollCTA() {
   return (
     <Link href="/dashboard/payments" className="block">
-      <SweemCard accent hover className="flex items-center gap-4 py-4">
+      <SweemCard
+        accent
+        hover
+        className="flex items-center gap-4 py-4"
+        style={{ background: "linear-gradient(180deg, var(--sw-mint) 0%, color-mix(in srgb, var(--sw-mint) 55%, transparent) 100%)" }}
+      >
         <IconChip tone="dark" className="size-10 bg-black/85 text-[var(--sw-mint)]">
           <Zap className="size-[18px]" strokeWidth={2} />
         </IconChip>

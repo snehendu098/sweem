@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
+import { Bar, BarChart, Cell, LabelList, Pie, PieChart, ResponsiveContainer, XAxis } from "recharts";
 import {
   Coins,
   Layers,
@@ -77,7 +77,7 @@ function StatCard({
   children,
 }: {
   icon: React.ReactNode;
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -364,10 +364,24 @@ export function EmployeesScreen() {
           <StatCard icon={<Layers className="size-[18px]" strokeWidth={2} />} label="Groups">
             {groups.length}
           </StatCard>
-          <StatCard icon={<Wallet className="size-[18px]" strokeWidth={2} />} label="Monthly · USDC">
+          <StatCard
+            icon={<Wallet className="size-[18px]" strokeWidth={2} />}
+            label={
+              <span className="inline-flex items-center gap-1">
+                Monthly · <TokenIcon token={TOKENS.USDC} size={14} /> USDC
+              </span>
+            }
+          >
             <MoneyValue value={totalMonthlyByToken.USDC} />
           </StatCard>
-          <StatCard icon={<Coins className="size-[18px]" strokeWidth={2} />} label="Monthly · SUI">
+          <StatCard
+            icon={<Coins className="size-[18px]" strokeWidth={2} />}
+            label={
+              <span className="inline-flex items-center gap-1">
+                Monthly · <TokenIcon token={TOKENS.SUI} size={14} /> SUI
+              </span>
+            }
+          >
             <MoneyValue value={totalMonthlyByToken.SUI} />
           </StatCard>
         </div>
@@ -484,10 +498,10 @@ export function EmployeesScreen() {
                       <td className="sweem-mono text-xs">{shortAddr(e.walletAddress)}</td>
                       <td>{group}</td>
                       <td>
-                        <RateCell amount={r.USDC} />
+                        <RateCell amount={r.USDC} symbol="USDC" />
                       </td>
                       <td>
-                        <RateCell amount={r.SUI} />
+                        <RateCell amount={r.SUI} symbol="SUI" />
                       </td>
                       <td>
                         <span className={`sweem-badge ${STATUS_BADGE[status]}`}>{status}</span>
@@ -710,9 +724,14 @@ const STATUS_BADGE: Record<StatusKey, string> = {
   "—": "sweem-badge-idle",
 };
 
-function RateCell({ amount }: { amount?: number }) {
+function RateCell({ amount, symbol }: { amount?: number; symbol: TokenSymbol }) {
   if (!amount) return <span className="text-[var(--sw-text-dim)]">—</span>;
-  return <span className="tabular-nums">{amount.toFixed(2)}</span>;
+  return (
+    <span className="inline-flex items-center gap-1 tabular-nums">
+      <TokenIcon token={TOKENS[symbol]} size={14} />
+      {amount.toFixed(2)} {symbol}
+    </span>
+  );
 }
 
 function Field({
@@ -815,17 +834,40 @@ function GroupDistributionCard({
           </div>
         </div>
       ) : (
-        <div className="mt-4 flex h-[26px] items-stretch gap-1.5">
-          {chartData.map((d, i) => (
-            <motion.span
-              key={d.key}
-              initial={{ flexGrow: 0, opacity: 0 }}
-              animate={{ flexGrow: Math.max(d.count, 0.001), opacity: 1 }}
-              transition={{ delay: 0.1 + i * 0.06, type: "spring", stiffness: 200, damping: 24 }}
-              style={{ flexBasis: 0, background: d.color }}
-              className="rounded-full"
-            />
-          ))}
+        <div className="mt-2 h-[150px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 22, right: 4, bottom: 0, left: 4 }} barCategoryGap="28%">
+              <defs>
+                {chartData.map((d, i) => (
+                  <linearGradient key={i} id={`grp-grad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={d.color} stopOpacity={1} />
+                    <stop offset="100%" stopColor={d.color} stopOpacity={0.35} />
+                  </linearGradient>
+                ))}
+              </defs>
+              <XAxis
+                dataKey="label"
+                axisLine={false}
+                tickLine={false}
+                interval={0}
+                tick={{ fill: "var(--sw-text-dim)", fontSize: 11 }}
+                tickMargin={10}
+              />
+              <Bar dataKey="count" radius={[8, 8, 8, 8]} maxBarSize={42} animationDuration={800}>
+                <LabelList
+                  dataKey="count"
+                  position="top"
+                  offset={8}
+                  fill="var(--sw-text-muted)"
+                  fontSize={11}
+                  fontWeight={600}
+                />
+                {chartData.map((d, i) => (
+                  <Cell key={i} fill={`url(#grp-grad-${i})`} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       )}
 

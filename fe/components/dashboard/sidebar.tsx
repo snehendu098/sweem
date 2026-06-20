@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
@@ -130,6 +131,7 @@ export function Sidebar({
           collapsed ? "justify-center px-0" : "px-5"
         )}
       >
+        <Image src="/sweem.png" alt="Sweem" width={26} height={26} priority className="h-[26px] w-[26px] shrink-0" />
         {!collapsed && (
           <>
             <span className="text-[17px] font-semibold tracking-[-0.02em]">Sweem</span>
@@ -178,7 +180,7 @@ export function Sidebar({
                   <span className="relative z-10 flex flex-1 items-center justify-between">
                     <span>{item.label}</span>
                     {item.badge && (
-                      <span className="rounded-md bg-[rgba(196,245,107,0.16)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--sw-mint)]">
+                      <span className="rounded bg-[rgba(196,245,107,0.16)] px-1 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide text-[var(--sw-mint)]">
                         {item.badge}
                       </span>
                     )}

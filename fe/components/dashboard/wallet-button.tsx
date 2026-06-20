@@ -12,15 +12,6 @@ function shortAddr(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
-// Deterministic gradient avatar derived from the address.
-function avatarStyle(addr: string): React.CSSProperties {
-  const h1 = parseInt(addr.slice(2, 8), 16) % 360;
-  const h2 = parseInt(addr.slice(-6), 16) % 360;
-  return {
-    background: `linear-gradient(135deg, hsl(${h1} 72% 56%), hsl(${h2} 72% 46%))`,
-  };
-}
-
 export function WalletButton() {
   const account = useCurrentAccount();
   const { mutate: disconnect } = useDisconnectWallet();
@@ -39,12 +30,7 @@ export function WalletButton() {
     };
 
     return (
-      <div className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--sw-border)] bg-[var(--sw-card)] pl-1.5 pr-1">
-        <span
-          className="size-6 shrink-0 rounded-full"
-          style={avatarStyle(account.address)}
-          aria-hidden="true"
-        />
+      <div className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--sw-border)] bg-[var(--sw-card)] pl-2.5 pr-1">
         <button
           onClick={copy}
           title="Copy full address"

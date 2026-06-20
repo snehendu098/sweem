@@ -7,16 +7,12 @@ export function Navbar() {
   return (
     <header className="absolute inset-x-0 top-6 z-30 flex items-center justify-between px-6 md:px-12 lg:px-24">
       <Logo dark />
-      <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 backdrop-blur-md md:flex">
-        {links.map((link, index) => (
+      <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full p-1 md:flex">
+        {links.map((link) => (
           <a
             key={link}
             href={`#${link.toLowerCase()}`}
-            className={
-              index === 0
-                ? "rounded-full bg-white/10 px-4 py-1.5 text-[13px] font-medium text-white shadow-sm"
-                : "rounded-full px-4 py-1.5 text-[13px] font-medium text-white/60 hover:text-white"
-            }
+            className="rounded-full px-4 py-1.5 text-[13px] font-medium text-white/60 hover:text-white"
           >
             {link}
           </a>

@@ -9,6 +9,7 @@ import {
   Bar,
   BarChart,
   Cell,
+  LabelList,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -24,6 +25,8 @@ import {
   SweemCard,
 } from "@/components/sweem-ui/primitives";
 import { useMounted } from "@/components/sweem-ui/use-mounted";
+import { ProtocolLogo } from "@/components/sweem-ui/protocol-logo";
+import { TokenIcon } from "@/components/sweem-ui/token-icon";
 
 import { cn } from "@/lib/utils";
 import { MONTH_MS, weeklyCommitRaw } from "@/lib/sweem";
@@ -149,7 +152,7 @@ function PoolBalanceCard({
         {ALLOC.map((s) => (
           <li key={s.key} className="flex items-center justify-between">
             <span className="flex items-center gap-2.5">
-              <span className="size-2.5 rounded-full" style={{ background: s.color }} />
+              <ProtocolLogo name={s.label} size={18} accent={s.color} />
               <span className="text-[13px] text-[var(--sw-text-muted)]">{s.label}</span>
             </span>
             <span className="text-[13px] font-semibold tabular-nums text-[var(--sw-text)]">
@@ -269,7 +272,7 @@ function InvestedCard({
             <div key={r.label}>
               <div className="flex items-center justify-between text-[13px]">
                 <span className="flex items-center gap-2.5">
-                  <span className="size-2.5 rounded-full" style={{ background: r.color }} />
+                  <ProtocolLogo name={r.label} size={18} accent={r.color} />
                   <span className="text-[var(--sw-text-muted)]">{r.label}</span>
                 </span>
                 <span className="font-semibold tabular-nums text-[var(--sw-text)]">
@@ -312,6 +315,7 @@ function MonthlyPayrollCard({
   const data = employees
     .map((e) => ({ name: e.alias, label: e.alias, value: monthlyRate(e, token.symbol) }))
     .filter((d) => d.value > 0)
+    .sort((a, b) => b.value - a.value)
     .slice(0, 12);
 
   return (
@@ -333,7 +337,17 @@ function MonthlyPayrollCard({
           </div>
         ) : mounted ? (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 10, right: 4, bottom: 0, left: 4 }}>
+            <BarChart data={data} margin={{ top: 22, right: 4, bottom: 0, left: 4 }} barCategoryGap="28%">
+              <defs>
+                <linearGradient id="pay-mint" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--sw-mint)" stopOpacity={1} />
+                  <stop offset="100%" stopColor="var(--sw-mint)" stopOpacity={0.35} />
+                </linearGradient>
+                <linearGradient id="pay-lav" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--sw-lavender)" stopOpacity={1} />
+                  <stop offset="100%" stopColor="var(--sw-lavender)" stopOpacity={0.35} />
+                </linearGradient>
+              </defs>
               <XAxis
                 dataKey="name"
                 axisLine={false}
@@ -346,9 +360,18 @@ function MonthlyPayrollCard({
                 cursor={{ fill: "rgba(255,255,255,0.04)", radius: 8 }}
                 content={<ChartTooltip suffix="/mo" symbol={token.symbol} />}
               />
-              <Bar dataKey="value" radius={[8, 8, 8, 8]} maxBarSize={26} animationDuration={900}>
+              <Bar dataKey="value" radius={[8, 8, 8, 8]} maxBarSize={42} animationDuration={900}>
+                <LabelList
+                  dataKey="value"
+                  position="top"
+                  offset={8}
+                  formatter={(v: number) => v.toFixed(2)}
+                  fill="var(--sw-text-muted)"
+                  fontSize={11}
+                  fontWeight={600}
+                />
                 {data.map((_, i) => (
-                  <Cell key={i} fill={i % 2 === 0 ? "var(--sw-mint)" : "var(--sw-lavender)"} />
+                  <Cell key={i} fill={i % 2 === 0 ? "url(#pay-mint)" : "url(#pay-lav)"} />
                 ))}
               </Bar>
             </BarChart>
@@ -855,20 +878,27 @@ export function PayrollScreen() {
                     <td className="font-medium">{e.alias}</td>
                     <td className="sweem-mono text-xs">{shortAddr(e.walletAddress)}</td>
                     <td className="tabular-nums">
-                      {monthlyRate(e, symbol).toFixed(2)} {symbol}
+                      <span className="inline-flex items-center gap-1">
+                        <TokenIcon token={token} size={14} />
+                        {monthlyRate(e, symbol).toFixed(2)} {symbol}
+                      </span>
                     </td>
                     <td>
                       <span className={`sweem-badge ${badgeClass}`}>{label}</span>
                     </td>
                     <td className="sweem-mono">
-                      <LiveTicker
-                        baseRaw={byEmployee[e.walletAddress] ?? 0n}
-                        rateRaw={toRaw(token, monthlyRate(e, symbol))}
-                        periodMs={BigInt(MONTH_MS)}
-                        anchorAt={anchorAt}
-                        active={funded && hasStream && !paused && !stopped}
-                        decimals={token.decimals}
-                      />
+                      <span className="inline-flex items-center gap-1">
+                        <TokenIcon token={token} size={14} />
+                        <LiveTicker
+                          baseRaw={byEmployee[e.walletAddress] ?? 0n}
+                          rateRaw={toRaw(token, monthlyRate(e, symbol))}
+                          periodMs={BigInt(MONTH_MS)}
+                          anchorAt={anchorAt}
+                          active={funded && hasStream && !paused && !stopped}
+                          decimals={token.decimals}
+                        />
+                        {" "}{symbol}
+                      </span>
                     </td>
                     <td>
                       {funded && !hasStream ? (
