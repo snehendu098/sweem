@@ -43,10 +43,11 @@ import {
   createVaultTx,
   initBucketTx,
   claimToWalletTx,
-  claimToVaultTx,
+  claimAndAllocateTx,
   vaultInvestNaviTx,
   vaultInvestScallopTx,
   vaultHasNaviCap,
+  vaultHasUsdcBucket,
   readVaultInvestments,
   type StreamState,
   type CoverOpts,
@@ -54,8 +55,38 @@ import {
 import { DashboardPageShell } from "@/components/dashboard/dashboard-screen";
 import { Icon } from "@/components/dashboard/icons";
 import { LiveTicker } from "./live-ticker";
-import { ActionButton, Modal, ProtocolRow, ConnectGate } from "./ui";
+import { ActionButton, AllocRow, Modal, ProtocolRow, ConnectGate } from "./ui";
 import { shortAddr } from "./helpers";
+
+// Saved allocation split (percentages routed off the wallet leg). The wallet leg
+// is implicit: 100 − save − navi − scallop. Persisted per-wallet in localStorage
+// so an employee's "plan" pre-fills the Claim & Allocate sheet next time.
+interface AllocPct {
+  save: number;
+  navi: number;
+  scallop: number;
+}
+const DEFAULT_ALLOC: AllocPct = { save: 20, navi: 20, scallop: 20 }; // wallet = 40%
+const allocKey = (w: string) => `sweem:alloc:${w}`;
+
+function loadAlloc(wallet?: string): AllocPct {
+  if (!wallet || typeof window === "undefined") return DEFAULT_ALLOC;
+  try {
+    const raw = window.localStorage.getItem(allocKey(wallet));
+    if (raw) return { ...DEFAULT_ALLOC, ...(JSON.parse(raw) as Partial<AllocPct>) };
+  } catch {
+    /* fall through to default */
+  }
+  return DEFAULT_ALLOC;
+}
+
+function saveAlloc(wallet: string, alloc: AllocPct) {
+  try {
+    window.localStorage.setItem(allocKey(wallet), JSON.stringify(alloc));
+  } catch {
+    /* non-fatal */
+  }
+}
 
 interface PoolView {
   poolId: string;
@@ -68,12 +99,16 @@ interface PoolView {
 function StreamCard({
   view,
   vaultId,
-  onWantInvest,
+  naviApy,
+  scallopApy,
+  onAllocated,
   onVaultChanged,
 }: {
   view: PoolView;
   vaultId: string | null;
-  onWantInvest: () => void;
+  naviApy?: number;
+  scallopApy?: number;
+  onAllocated: () => void;
   onVaultChanged: (id: string) => void;
 }) {
   const account = useCurrentAccount();
@@ -83,6 +118,9 @@ function StreamCard({
   const { poolId, stream, org, orgName } = view;
 
   const [busy, setBusy] = useState(false);
+  const [allocOpen, setAllocOpen] = useState(false);
+  const [alloc, setAlloc] = useState<AllocPct>(() => loadAlloc(wallet));
+  const [saveDefault, setSaveDefault] = useState(true);
   const live = !stream.paused && !stream.stopped;
 
   const claimQuery = useQuery({
@@ -163,18 +201,65 @@ function StreamCard({
     return id;
   }
 
-  async function handleWithdrawToVault() {
+  // ── Claim & Allocate ────────────────────────────────────────────────────
+  const walletPct = Math.max(0, 100 - alloc.save - alloc.navi - alloc.scallop);
+  // Live amount preview for a percentage of the current claimable balance.
+  const amtUsdc = (pct: number) => fromRaw((baseRaw * BigInt(pct)) / 100n);
+  // Move one leg; clamp so the editable legs never sum past 100% (wallet ≥ 0).
+  function setLeg(key: keyof AllocPct, v: number) {
+    setAlloc((prev) => {
+      const others = (["save", "navi", "scallop"] as (keyof AllocPct)[])
+        .filter((k) => k !== key)
+        .reduce((s, k) => s + prev[k], 0);
+      return { ...prev, [key]: Math.max(0, Math.min(v, 100 - others)) };
+    });
+  }
+  const naviBelowMin = alloc.navi > 0 && amtUsdc(alloc.navi) < NAVI_MIN_INVEST_USDC;
+
+  async function handleClaimAllocate() {
     setBusy(true);
-    const t = toast.loading("Preparing vault claim…");
+    const t = toast.loading("Preparing claim…");
     try {
-      const vid = await ensureVault();
+      // Fresh read so the split tracks accrual; wallet absorbs any rounding/dust.
+      const X = await readClaimable(client, poolId, wallet).catch(() => baseRaw);
+      const naviRaw = (X * BigInt(alloc.navi)) / 100n;
+      const scallopRaw = (X * BigInt(alloc.scallop)) / 100n;
+      const idleRaw = (X * BigInt(alloc.save)) / 100n;
+      const bucketDepositRaw = idleRaw + naviRaw + scallopRaw;
+      // Navi rejects sub-minimum deposits — fold those into idle (deposited, not invested).
+      const naviMinRaw = toRaw(NAVI_MIN_INVEST_USDC);
+      const naviInvestRaw = naviRaw >= naviMinRaw ? naviRaw : 0n;
+
+      let vid: string | null = null;
+      let needsBucket = false;
+      let needsNaviCap = false;
+      if (bucketDepositRaw > 0n) {
+        vid = await ensureVault();
+        needsBucket = !(await vaultHasUsdcBucket(client, vid));
+        if (naviInvestRaw > 0n) needsNaviCap = !(await vaultHasNaviCap(client, vid));
+      }
+
       const covers = await computeCovers();
-      toast.loading("Claiming into vault…", { id: t });
-      const { digest } = await signAndExecute({ transaction: claimToVaultTx(poolId, vid, covers) });
+      toast.loading("Claiming & allocating…", { id: t });
+      const { digest } = await signAndExecute({
+        transaction: claimAndAllocateTx({
+          poolId,
+          vaultId: vid,
+          wallet,
+          covers,
+          bucketDepositRaw,
+          naviInvestRaw,
+          scallopInvestRaw: scallopRaw,
+          needsBucket,
+          needsNaviCap,
+        }),
+      });
       await client.waitForTransaction({ digest, options: { showEffects: true } });
-      toast.success("Claimed into vault", { id: t });
+      if (saveDefault) saveAlloc(wallet, alloc);
+      toast.success("Claimed & allocated", { id: t });
+      setAllocOpen(false);
       await claimQuery.refetch();
-      onWantInvest();
+      onAllocated();
     } catch (e) {
       toast.error((e as Error).message, { id: t });
     } finally {
@@ -220,14 +305,85 @@ function StreamCard({
         </div>
 
         <div className="sweem-actions">
-          <ActionButton variant="primary" onClick={handleWithdrawToWallet} disabled={busy || !meetsMin}>
-            <Icon name="user" size={15} strokeWidth={2.1} /> Withdraw to wallet
+          <ActionButton variant="primary" onClick={() => setAllocOpen(true)} disabled={busy || !meetsMin}>
+            <Icon name="bank" size={15} strokeWidth={2} /> Claim &amp; Allocate
           </ActionButton>
-          <ActionButton onClick={handleWithdrawToVault} disabled={busy || !meetsMin}>
-            <Icon name="bank" size={15} strokeWidth={2} /> Withdraw to vault
+          <ActionButton onClick={handleWithdrawToWallet} disabled={busy || !meetsMin}>
+            <Icon name="user" size={15} strokeWidth={2.1} /> To wallet
           </ActionButton>
         </div>
       </div>
+
+      <Modal
+        open={allocOpen}
+        onClose={() => (busy ? undefined : setAllocOpen(false))}
+        title="Claim & Allocate"
+        subtitle={
+          <>
+            Split your {fromRaw(baseRaw).toFixed(2)} USDC claim — cash gets whatever&apos;s left.
+          </>
+        }
+        footer={
+          <>
+            <label className="mr-auto flex cursor-pointer items-center gap-2 text-[12.5px] text-[var(--sw-text-muted)]">
+              <input
+                type="checkbox"
+                checked={saveDefault}
+                onChange={(e) => setSaveDefault(e.target.checked)}
+                className="h-4 w-4 accent-[var(--dash-blue)]"
+              />
+              Save as my default
+            </label>
+            <ActionButton onClick={() => setAllocOpen(false)} disabled={busy}>
+              Cancel
+            </ActionButton>
+            <ActionButton variant="primary" onClick={handleClaimAllocate} disabled={busy}>
+              Claim &amp; Allocate
+            </ActionButton>
+          </>
+        }
+      >
+        <AllocRow
+          label="Cash → wallet"
+          hint="Sent to your wallet now"
+          pct={walletPct}
+          usdc={amtUsdc(walletPct)}
+          accent="var(--sw-text)"
+        />
+        <AllocRow
+          label="Save (idle in vault)"
+          hint="Held in your vault, ready to invest"
+          pct={alloc.save}
+          usdc={amtUsdc(alloc.save)}
+          accent="var(--sw-text-dim)"
+          onPct={(v) => setLeg("save", v)}
+          max={100 - alloc.navi - alloc.scallop}
+        />
+        <AllocRow
+          label="Navi"
+          hint={
+            naviBelowMin
+              ? `Below ${NAVI_MIN_INVEST_USDC} USDC min — kept idle this claim`
+              : naviApy != null
+                ? `Live APR ${naviApy.toFixed(2)}%`
+                : "Earns lending yield"
+          }
+          pct={alloc.navi}
+          usdc={amtUsdc(alloc.navi)}
+          accent="var(--sw-mint)"
+          onPct={(v) => setLeg("navi", v)}
+          max={100 - alloc.save - alloc.scallop}
+        />
+        <AllocRow
+          label="Scallop"
+          hint={scallopApy != null ? `Live APR ${scallopApy.toFixed(2)}%` : "Earns lending yield"}
+          pct={alloc.scallop}
+          usdc={amtUsdc(alloc.scallop)}
+          accent="var(--sw-lavender)"
+          onPct={(v) => setLeg("scallop", v)}
+          max={100 - alloc.save - alloc.navi}
+        />
+      </Modal>
     </div>
   );
 }
@@ -634,7 +790,12 @@ export function EmployeePortalScreen() {
               key={v.poolId}
               view={v}
               vaultId={effectiveVault}
-              onWantInvest={openInvest}
+              naviApy={naviApy}
+              scallopApy={scallopApy}
+              onAllocated={() => {
+                vaultInvQuery.refetch();
+                vaultQuery.refetch();
+              }}
               onVaultChanged={(id) => setVaultId(id)}
             />
           ))}

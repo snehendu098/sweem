@@ -126,6 +126,56 @@ export function ProtocolRow({
   );
 }
 
+// One destination leg in the Claim & Allocate sheet: a colored dot, label/hint,
+// a percentage slider, and the live USDC amount. Pass no `onPct` to render a
+// read-only row (used for the wallet leg, which is the implicit remainder).
+export function AllocRow({
+  label,
+  hint,
+  pct,
+  usdc,
+  accent,
+  onPct,
+  max = 100,
+}: {
+  label: string;
+  hint?: ReactNode;
+  pct: number;
+  usdc: number;
+  accent?: string;
+  onPct?: (v: number) => void;
+  max?: number;
+}) {
+  return (
+    <div className="sweem-protocol-row items-center">
+      <span
+        className="size-2.5 shrink-0 rounded-full"
+        style={{ background: accent ?? "var(--sw-text)" }}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-semibold text-[color:var(--dash-text)]">{label}</p>
+        {hint ? <p className="sweem-hint">{hint}</p> : null}
+        {onPct ? (
+          <input
+            type="range"
+            min={0}
+            max={max}
+            value={pct}
+            onChange={(e) => onPct(Number(e.target.value))}
+            className="mt-2 w-full accent-[var(--dash-blue)]"
+          />
+        ) : null}
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-[13px] font-semibold tabular-nums text-[color:var(--dash-text)]">
+          {pct}%
+        </p>
+        <p className="sweem-hint tabular-nums">{usdc.toFixed(2)} USDC</p>
+      </div>
+    </div>
+  );
+}
+
 export function ConnectGate({ message }: { message: string }) {
   return <div className="sweem-gate">{message}</div>;
 }

@@ -498,6 +498,104 @@ export function claimToVaultTx(poolId: string, vaultId: string, covers: CoverOpt
   return tx
 }
 
+// One-PTB "Claim & Allocate": claim the full accrued stream, route a slice into the
+// vault bucket (optionally investing the Navi/Scallop legs by amount), and send the
+// remainder — cash + accrual dust — back to the employee's wallet. Percentages are
+// resolved to base-unit amounts off-chain by the caller; the wallet leg is implicit
+// (whatever's left after the bucket deposit), so it absorbs all rounding.
+export interface AllocPlan {
+  poolId: string
+  vaultId: string | null // required when bucketDepositRaw > 0
+  wallet: string // recipient of the cash remainder
+  covers: CoverOpts
+  bucketDepositRaw: bigint // total USDC routed into the vault bucket (idle + navi + scallop legs)
+  naviInvestRaw: bigint // portion of the bucket pushed into Navi (0 = leave idle)
+  scallopInvestRaw: bigint // portion of the bucket pushed into Scallop (0 = leave idle)
+  needsBucket: boolean // init the USDC bucket first (vault has none yet)
+  needsNaviCap: boolean // mint + store a Navi AccountCap first
+}
+
+export function claimAndAllocateTx(plan: AllocPlan): Transaction {
+  const tx = new Transaction()
+  appendCovers(tx, plan.poolId, plan.covers)
+  const [coin] = tx.moveCall({
+    target: `${CORE}::stream_pool::claim`,
+    typeArguments: [USDC],
+    arguments: [tx.object(plan.poolId), tx.object(CLOCK)],
+  })
+
+  if (plan.bucketDepositRaw > 0n) {
+    if (!plan.vaultId) throw new Error('A vault is required to allocate into the vault')
+    const vault = tx.object(plan.vaultId)
+    if (plan.needsBucket) {
+      tx.moveCall({
+        target: `${CORE}::employee_vault::init_bucket`,
+        typeArguments: [USDC],
+        arguments: [vault, tx.pure.string(VAULT_TOKEN_NAME)],
+      })
+    }
+    const [vaultCoin] = tx.splitCoins(coin, [tx.pure.u64(plan.bucketDepositRaw)])
+    tx.moveCall({
+      target: `${CORE}::employee_vault::deposit_to_bucket`,
+      typeArguments: [USDC],
+      arguments: [vault, tx.pure.string(VAULT_TOKEN_NAME), vaultCoin],
+    })
+    if (plan.naviInvestRaw > 0n) {
+      if (plan.needsNaviCap) {
+        const cap = tx.moveCall({ target: `${NAVI_LENDING_CORE_PKG}::lending::create_account` })
+        tx.moveCall({
+          target: `${ADAPTERS}::navi::store_vault_account_cap`, // NON-generic
+          arguments: [vault, cap],
+        })
+      }
+      tx.moveCall({
+        target: `${ADAPTERS}::navi::vault_invest_navi`,
+        typeArguments: [USDC],
+        arguments: [
+          vault,
+          tx.pure.string(VAULT_TOKEN_NAME),
+          tx.object(NAVI_STORAGE),
+          tx.object(NAVI_POOL_USDC),
+          tx.object(NAVI_INCENTIVE_V2),
+          tx.object(NAVI_INCENTIVE_V3),
+          tx.object(PROTOCOL_REGISTRY),
+          tx.object(CLOCK),
+          tx.pure.u8(NAVI_ASSET_ID),
+          tx.pure.u64(plan.naviInvestRaw),
+        ],
+      })
+    }
+    if (plan.scallopInvestRaw > 0n) {
+      tx.moveCall({
+        target: `${ADAPTERS}::scallop::vault_invest_scallop`,
+        typeArguments: [USDC],
+        arguments: [
+          vault,
+          tx.pure.string(VAULT_TOKEN_NAME),
+          tx.object(SCALLOP_VERSION),
+          tx.object(SCALLOP_MARKET),
+          tx.object(PROTOCOL_REGISTRY),
+          tx.object(CLOCK),
+          tx.pure.u64(plan.scallopInvestRaw),
+        ],
+      })
+    }
+  }
+
+  // Remainder (cash + accrual dust) goes to the employee.
+  tx.transferObjects([coin], tx.pure.address(plan.wallet))
+  return tx
+}
+
+// True if the vault already has its USDC TokenBucket (deposit_to_bucket aborts
+// without it; init_bucket aborts if it already exists — so callers must know).
+export async function vaultHasUsdcBucket(
+  client: SuiJsonRpcClient,
+  vaultId: string,
+): Promise<boolean> {
+  return (await findVaultBucketId(client, vaultId)) !== null
+}
+
 // employee_vault::create_and_keep — mints an EmployeeVault to the caller.
 export function createVaultTx(): Transaction {
   const tx = new Transaction()
