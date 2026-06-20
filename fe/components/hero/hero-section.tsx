@@ -1,4 +1,5 @@
 import { Navbar } from "@/components/layout/navbar";
+import { LaunchAppButton } from "@/components/shared/launch-app-button";
 
 const avatars = ["#e7a880", "#c9a7e2", "#f1c48a"];
 
@@ -63,12 +64,9 @@ export function HeroSection() {
         </p>
 
         <div className="mt-8 flex items-center gap-3">
-          <a
-            href="/dashboard"
-            className="rounded-full bg-white px-6 py-3 text-[14px] font-semibold text-[#101828] shadow-[0_14px_30px_rgba(4,40,80,0.18)]"
-          >
+          <LaunchAppButton className="rounded-full bg-white px-6 py-3 text-[14px] font-semibold text-[#101828] shadow-[0_14px_30px_rgba(4,40,80,0.18)]">
             Launch Dashboard
-          </a>
+          </LaunchAppButton>
           <button className="grid size-12 place-items-center rounded-full border border-white/40 bg-white/15 backdrop-blur-md">
             <GoogleIcon />
           </button>

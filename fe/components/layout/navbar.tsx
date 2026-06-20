@@ -1,4 +1,5 @@
 import { Logo } from "@/components/shared/logo";
+import { LaunchAppButton } from "@/components/shared/launch-app-button";
 
 const links = ["Home", "Product", "Protocol", "Pricing", "Docs"];
 
@@ -25,12 +26,9 @@ export function Navbar() {
         <a className="hidden text-[13px] font-medium text-white sm:inline" href="#docs">
           Docs
         </a>
-        <a
-          className="rounded-full bg-white px-5 py-2 text-[13px] font-semibold text-[#101828] shadow-sm"
-          href="/dashboard"
-        >
+        <LaunchAppButton className="rounded-full bg-white px-5 py-2 text-[13px] font-semibold text-[#101828] shadow-sm">
           Launch App
-        </a>
+        </LaunchAppButton>
       </div>
     </header>
   );

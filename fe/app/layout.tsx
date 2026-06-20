@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins, Geist, Inter } from "next/font/google";
 import { SmoothScroll } from "@/components/providers/smooth-scroll";
+import { DashboardProviders } from "@/components/dashboard/providers";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +28,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("h-full", "antialiased", poppins.variable, "font-sans", geist.variable, inter.variable)}>
       <body className="min-h-full flex flex-col">
-        <SmoothScroll>{children}</SmoothScroll>
+        {/* Wallet + react-query context is global so the landing page can connect
+            and the connection persists into /dashboard and /onboarding without a
+            provider remount. */}
+        <DashboardProviders>
+          <SmoothScroll>{children}</SmoothScroll>
+        </DashboardProviders>
       </body>
     </html>
   );

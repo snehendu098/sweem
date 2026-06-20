@@ -1,6 +1,6 @@
 import { Reveal } from "@/components/motion/reveal";
 import { Section } from "@/components/layout/section";
-import { Button } from "@/components/ui/button";
+import { LaunchAppButton } from "@/components/shared/launch-app-button";
 
 function Sparkle({ size = 22, className }: { size?: number; className: string }) {
   return (
@@ -57,17 +57,12 @@ export function CtaSection() {
             <p className="mx-auto mt-4 max-w-[460px] text-[13px] leading-6 text-white/80">
               Fund a pool, stream salaries by the second, and earn on every idle dollar.
             </p>
-            <Button
-              asChild
-              className="mt-7 gap-2 rounded-full bg-white px-7 text-[13px] font-medium text-text-primary hover:bg-white/90"
-            >
-              <a href="/dashboard">
-                Launch Dashboard
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
-                  <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </a>
-            </Button>
+            <LaunchAppButton className="mt-7 inline-flex h-10 items-center gap-2 rounded-full bg-white px-7 text-[13px] font-medium text-text-primary transition-colors hover:bg-white/90">
+              Launch Dashboard
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+                <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </LaunchAppButton>
           </div>
         </div>
       </Reveal>
