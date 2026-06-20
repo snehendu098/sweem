@@ -51,13 +51,15 @@ const navItems: readonly NavItem[] = [
       { label: "Documentation", href: "/dashboard/developer/documentation" },
       { label: "API reference", href: "/dashboard/developer/api-reference" },
       { label: "Get test tokens", href: "/dashboard/developer/test-tokens" },
+      { label: "Components", href: "/dashboard/developer/component" },
     ],
   },
   { icon: "settings", label: "Settings", href: "/dashboard/settings" },
 ] satisfies readonly NavItem[];
 
 function getNavItemState(item: NavItem, pathname: string) {
-  const isExpanded = item.matchPrefix ? pathname.startsWith(item.matchPrefix) : false;
+  const matchesSub = item.subitems?.some((s) => pathname === s.href) ?? false;
+  const isExpanded = matchesSub || (item.matchPrefix ? pathname.startsWith(item.matchPrefix) : false);
   const isActive =
     item.href === "/dashboard"
       ? pathname === item.href
