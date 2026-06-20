@@ -5,15 +5,20 @@
   "compatibility_date": "2026-06-06",
   "compatibility_flags": ["nodejs_compat"],
 
+  // Workers AI — used by POST /v1/ai/map-csv to infer CSV column mappings.
+  "ai": { "binding": "AI" },
+
   "env": {
     "testnet": {
       "name": "sweem-server-testnet",
-      "vars": { "SUI_NETWORK": "testnet" },
+      "vars": { "SUI_NETWORK": "testnet", "RESEND_FROM": "Sweem <onboarding@resend.dev>", "EMAIL_DEV_MODE": "true" },
+      "ai": { "binding": "AI" },
       "hyperdrive": [{ "binding": "DB", "id": "REPLACE_TESTNET_HYPERDRIVE_ID" }]
     },
     "mainnet": {
       "name": "sweem-server-mainnet",
-      "vars": { "SUI_NETWORK": "mainnet", "ALLOWED_ORIGIN": "http://localhost:3000" },
+      "vars": { "SUI_NETWORK": "mainnet", "ALLOWED_ORIGIN": "http://localhost:3000", "RESEND_FROM": "Sweem <onboarding@resend.dev>", "EMAIL_DEV_MODE": "true" },
+      "ai": { "binding": "AI" },
       "hyperdrive": [{ "binding": "DB", "id": "c4faee31e1fc45eea7ea121ff56b7313" }]
     }
   },

@@ -21,8 +21,14 @@ export interface RateInput {
 }
 
 export interface Org {
-  wallet: string
+  // NOTE: the backend serializes drizzle rows in camelCase (walletAddress, …).
+  wallet?: string
+  walletAddress?: string
   name: string
+  logoUrl?: string | null
+  email?: string | null
+  emailVerifiedAt?: string | null
+  createdAt?: string
 }
 
 export interface Group {
@@ -68,8 +74,50 @@ export interface YieldResponse {
 export interface AddEmployeeInput {
   alias: string
   wallet_address: string
+  email?: string | null
   group_id?: string
   rates: RateInput[]
+}
+
+// ----- onboarding: CSV import + email verification -----
+
+export type MappingField =
+  | 'alias'
+  | 'wallet_address'
+  | 'email'
+  | 'rate_amount'
+  | 'rate_type'
+  | 'group'
+
+export type ColumnMapping = Record<MappingField, string | null>
+
+export interface MapCsvResult {
+  mapping: ColumnMapping
+  defaults: { token: 'USDC'; rate_type: 'MONTHLY' }
+  source: 'heuristic' | 'ai' | 'mixed'
+}
+
+export interface BulkEmployeeInput {
+  alias: string
+  wallet_address: string
+  email?: string | null
+  group_id?: string | null
+  group_name?: string | null
+  rates?: RateInput[]
+}
+
+export interface BulkResult {
+  created: number
+  skipped: { wallet_address: string; reason: string }[]
+  errors: { wallet_address: string; message: string }[]
+}
+
+export interface StartEmailResult {
+  ok: boolean
+  sent: boolean
+  sendError?: string
+  devMode?: boolean
+  code?: string
 }
 
 export function useSweemApi() {
@@ -163,6 +211,26 @@ export function useSweemApi() {
       authedFetch(`/v1/orgs/${w}/employees`, 'POST', input),
 
     listEmployees: (w: string) => get<Employee[]>(`/v1/orgs/${w}/employees`),
+
+    // ----- onboarding -----
+    // AI-infer CSV column mapping (sends only headers + a few sample rows).
+    mapCsv: async (headers: string[], samples: string[][]): Promise<MapCsvResult> => {
+      const { data } = await authedFetch('/v1/ai/map-csv', 'POST', { headers, samples })
+      return data as MapCsvResult
+    },
+
+    bulkAddEmployees: async (w: string, employees: BulkEmployeeInput[]): Promise<BulkResult> => {
+      const { data } = await authedFetch(`/v1/orgs/${w}/employees/bulk`, 'POST', { employees })
+      return data as BulkResult
+    },
+
+    startEmailVerification: async (w: string, email: string): Promise<StartEmailResult> => {
+      const { data } = await authedFetch(`/v1/orgs/${w}/email/start`, 'POST', { email })
+      return data as StartEmailResult
+    },
+
+    confirmEmail: (w: string, code: string) =>
+      authedFetch(`/v1/orgs/${w}/email/confirm`, 'POST', { code }),
 
     createPool: (w: string, onChainPoolId: string) =>
       authedFetch(`/v1/orgs/${w}/pools`, 'POST', {

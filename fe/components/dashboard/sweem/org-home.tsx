@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { ConnectModal } from "@mysten/dapp-kit";
-import { toast } from "sonner";
 import { motion } from "framer-motion";
 import {
   Bar,
@@ -34,6 +34,7 @@ import {
   SweemCard,
 } from "@/components/sweem-ui/primitives";
 import { Column, DashboardGrid } from "@/components/sweem-ui/dashboard-grid";
+import { ProtocolLogo } from "@/components/sweem-ui/protocol-logo";
 import { useOrgPool } from "./use-org-pool";
 import { LiveTicker } from "./live-ticker";
 import { monthlyRate, shortAddr } from "./helpers";
@@ -67,8 +68,16 @@ export function OrgHome() {
     queryFn: () => readRecentActivity(client, onChainPoolId ?? null),
   });
 
+  const router = useRouter();
   const showConnect = !wallet;
-  const showCreateOrg = !!wallet && !api.orgQuery.isLoading && !org;
+  // Wallet connected but no org → the dashboard is empty for them; send to the
+  // onboarding wizard. Fires only while unregistered (never once `org` exists),
+  // and the wizard chrome stays escapable (disconnect / back-to-site).
+  const needsOnboarding = !!wallet && !api.orgQuery.isLoading && !org;
+
+  useEffect(() => {
+    if (needsOnboarding) router.push("/onboarding");
+  }, [needsOnboarding, router]);
 
   return (
     <div className="dashboard-content">
@@ -84,7 +93,11 @@ export function OrgHome() {
       </div>
 
       {showConnect && <ConnectPrompt />}
-      {showCreateOrg && <CreateOrgCard onCreated={() => api.orgQuery.refetch()} api={api} wallet={wallet!} />}
+      {needsOnboarding && (
+        <div className="mb-4 rounded-[22px] border border-[var(--sw-border)] bg-[var(--sw-card)] p-6 text-[13px] text-[var(--sw-text-muted)]">
+          Taking you to setup…
+        </div>
+      )}
 
       <DashboardGrid>
         {/* Left */}
@@ -156,60 +169,6 @@ function ConnectPrompt() {
           </button>
         }
       />
-    </div>
-  );
-}
-
-function CreateOrgCard({
-  api,
-  wallet,
-  onCreated,
-}: {
-  api: ReturnType<typeof useOrgPool>["api"];
-  wallet: string;
-  onCreated: () => void;
-}) {
-  const qc = useQueryClient();
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function handleCreate() {
-    if (!name.trim()) return;
-    setBusy(true);
-    try {
-      await api.ensureOrg(name.trim());
-      toast.success("Organization created");
-      setName("");
-      await qc.invalidateQueries({ queryKey: ["org", wallet] });
-      onCreated();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="mb-4 rounded-[22px] border border-[var(--sw-border)] bg-[var(--sw-card)] p-6">
-      <p className="text-[15px] font-semibold text-[var(--sw-text)]">Create your organization</p>
-      <p className="mt-1 text-[13px] text-[var(--sw-text-muted)]">
-        Onboard your org to start streaming payroll on Sui mainnet.
-      </p>
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Acme Inc."
-          className="flex-1 rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-4 py-2.5 text-[14px] text-[var(--sw-text)] outline-none placeholder:text-[var(--sw-text-dim)] focus:border-[var(--sw-border-strong)]"
-        />
-        <button
-          onClick={handleCreate}
-          disabled={busy || !name.trim()}
-          className="rounded-xl bg-[var(--sw-mint)] px-5 py-2.5 text-[13px] font-semibold text-black transition-colors hover:bg-[#cef77f] disabled:opacity-50"
-        >
-          Create organization
-        </button>
-      </div>
     </div>
   );
 }
@@ -596,7 +555,7 @@ function YieldChip({
     <div className="flex flex-col rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2">
-          <span className="size-2 rounded-full" style={{ background: accent }} />
+          <ProtocolLogo name={name} size={18} accent={accent} />
           <span className="text-[12.5px] text-[var(--sw-text-muted)]">{name}</span>
         </span>
         <span className="text-[11px] font-semibold tabular-nums text-[var(--sw-text-muted)]">

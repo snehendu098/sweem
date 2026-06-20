@@ -25,7 +25,6 @@ const navItems: readonly NavItem[] = [
   { icon: "home", label: "Overview", href: "/dashboard" },
   { icon: "payment", label: "Payroll", href: "/dashboard/payments" },
   { icon: "customer", label: "Employees", href: "/dashboard/customers" },
-  { icon: "link", label: "Employee portal", href: "/dashboard/portal" },
   { icon: "link", label: "Payment links", href: "/dashboard/payment-links" },
   {
     icon: "billing",

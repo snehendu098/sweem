@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ProtocolLogo } from "@/components/sweem-ui/protocol-logo";
 
 // Small shared primitives for the Sweem dashboard screens. Styled with the
 // `.sweem-*` classes (which reuse the dashboard --dash-* tokens) so everything
@@ -107,6 +108,7 @@ export function ProtocolRow({
         onChange={(e) => onChecked(e.target.checked)}
         className="h-4 w-4 accent-[var(--dash-blue)]"
       />
+      <ProtocolLogo name={name} size={26} />
       <div className="flex-1">
         <p className="text-[13px] font-semibold text-[color:var(--dash-text)]">{name}</p>
         <p className="sweem-hint">

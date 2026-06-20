@@ -1,15 +1,16 @@
-import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
+import { Toaster } from "sonner";
 import { DashboardProviders } from "@/components/dashboard/providers";
 import { RequireWallet } from "@/components/dashboard/require-wallet";
-import { Toaster } from "sonner";
+import { OnboardingChrome } from "@/components/onboarding/onboarding-chrome";
 
-// The dashboard shares the marketing site's typeface (Poppins, exposed as
-// `--font-poppins` on <html> by the root layout) so type + weights match `/`.
+// Onboarding has its own minimal chrome (wallet providers, no org sidebar). Root
+// layout already supplies fonts + SmoothScroll + html/body. Disconnected visitors
+// are bounced to `/` (landing) by RequireWallet.
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <DashboardProviders>
       <RequireWallet>
-        <DashboardLayout>{children}</DashboardLayout>
+        <OnboardingChrome>{children}</OnboardingChrome>
       </RequireWallet>
       <Toaster richColors position="bottom-right" />
     </DashboardProviders>

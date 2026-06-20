@@ -18,7 +18,6 @@ type RailItem = { icon: IconName; label: string; href: string };
 const NAV: readonly RailItem[] = [
   { icon: "grid", label: "Overview", href: "/dashboard" },
   { icon: "customer", label: "Employees", href: "/dashboard/customers" },
-  { icon: "globe", label: "Employee portal", href: "/dashboard/portal" },
   { icon: "dollar", label: "Payroll", href: "/dashboard/payments" },
 ];
 

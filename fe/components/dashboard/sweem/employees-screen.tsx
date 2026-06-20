@@ -15,6 +15,13 @@ import {
   MoneyValue,
   SweemCard,
 } from "@/components/sweem-ui/primitives";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ConnectGate } from "./ui";
 import { monthlyRate, shortAddr } from "./helpers";
 
@@ -287,18 +294,19 @@ export function EmployeesScreen() {
               />
             </Field>
             <Field label="Group" className="sm:col-span-2">
-              <select
-                className={inputCls}
-                value={groupId}
-                onChange={(e) => setGroupId(e.target.value)}
-              >
-                <option value={NO_GROUP}>No group</option>
-                {groups.map((g: Group) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
+              <Select value={groupId} onValueChange={setGroupId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="No group" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_GROUP}>No group</SelectItem>
+                  {groups.map((g: Group) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
           </div>
           <div className="mt-5">
