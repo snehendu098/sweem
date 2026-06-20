@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { ProtocolLogo } from "@/components/sweem-ui/protocol-logo";
+import type { TokenConfig } from "@/lib/tokens";
 
 // Small shared primitives for the Sweem dashboard screens. Styled with the
 // `.sweem-*` classes (which reuse the dashboard --dash-* tokens) so everything
@@ -84,7 +85,38 @@ export function Modal({
   );
 }
 
+// Quick-fill chips (25/50/75/Max) that pick a fraction of `max` for an amount field.
+export function PercentChips({
+  max,
+  onPick,
+  disabled,
+}: {
+  max: number;
+  onPick: (value: number) => void;
+  disabled?: boolean;
+}) {
+  const opts = [25, 50, 75, 100];
+  const pick = (pct: number) =>
+    onPick(pct === 100 ? max : Math.round(((max * pct) / 100) * 1e6) / 1e6);
+  return (
+    <div className="flex gap-1.5">
+      {opts.map((pct) => (
+        <button
+          key={pct}
+          type="button"
+          disabled={disabled || max <= 0}
+          onClick={() => pick(pct)}
+          className="rounded-lg border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-2.5 py-1 text-[11.5px] font-medium text-[var(--sw-text-muted)] transition-colors hover:border-[var(--sw-border-strong)] hover:text-[var(--sw-text)] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {pct === 100 ? "Max" : `${pct}%`}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // One protocol leg inside an invest dialog: checkbox + live APR + amount input.
+// Pass `max` to show 25/50/75/Max quick-fill chips beneath the input.
 export function ProtocolRow({
   name,
   apy,
@@ -92,6 +124,8 @@ export function ProtocolRow({
   onChecked,
   amount,
   onAmount,
+  symbol = "USDC",
+  max,
 }: {
   name: string;
   apy: number | undefined;
@@ -99,43 +133,53 @@ export function ProtocolRow({
   onChecked: (v: boolean) => void;
   amount: string;
   onAmount: (v: string) => void;
+  symbol?: string;
+  max?: number;
 }) {
   return (
-    <div className="sweem-protocol-row">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChecked(e.target.checked)}
-        className="h-4 w-4 accent-[var(--dash-blue)]"
-      />
-      <ProtocolLogo name={name} size={26} />
-      <div className="flex-1">
-        <p className="text-[13px] font-semibold text-[color:var(--dash-text)]">{name}</p>
-        <p className="sweem-hint">
-          Live APR: {apy == null ? "…" : `${apy.toFixed(2)}%`}
-        </p>
+    <div className="flex flex-col gap-2">
+      <div className="sweem-protocol-row">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChecked(e.target.checked)}
+          className="h-4 w-4 accent-[var(--dash-blue)]"
+        />
+        <ProtocolLogo name={name} size={26} />
+        <div className="flex-1">
+          <p className="text-[13px] font-semibold text-[color:var(--dash-text)]">{name}</p>
+          <p className="sweem-hint">
+            Live APR: {apy == null ? "…" : `${apy.toFixed(2)}%`}
+          </p>
+        </div>
+        <input
+          type="number"
+          inputMode="decimal"
+          className="sweem-input w-32"
+          placeholder={symbol}
+          value={amount}
+          disabled={!checked}
+          onChange={(e) => onAmount(e.target.value)}
+        />
       </div>
-      <input
-        type="number"
-        inputMode="decimal"
-        className="sweem-input w-32"
-        placeholder="USDC"
-        value={amount}
-        disabled={!checked}
-        onChange={(e) => onAmount(e.target.value)}
-      />
+      {max != null && checked && (
+        <div className="flex justify-end">
+          <PercentChips max={max} onPick={(v) => onAmount(String(v))} />
+        </div>
+      )}
     </div>
   );
 }
 
 // One destination leg in the Claim & Allocate sheet: a colored dot, label/hint,
-// a percentage slider, and the live USDC amount. Pass no `onPct` to render a
+// a percentage slider, and the live token amount. Pass no `onPct` to render a
 // read-only row (used for the wallet leg, which is the implicit remainder).
 export function AllocRow({
   label,
   hint,
   pct,
-  usdc,
+  amount,
+  symbol = "USDC",
   accent,
   onPct,
   max = 100,
@@ -143,7 +187,8 @@ export function AllocRow({
   label: string;
   hint?: ReactNode;
   pct: number;
-  usdc: number;
+  amount: number;
+  symbol?: string;
   accent?: string;
   onPct?: (v: number) => void;
   max?: number;
@@ -172,7 +217,7 @@ export function AllocRow({
         <p className="text-[13px] font-semibold tabular-nums text-[color:var(--dash-text)]">
           {pct}%
         </p>
-        <p className="sweem-hint tabular-nums">{usdc.toFixed(2)} USDC</p>
+        <p className="sweem-hint tabular-nums">{amount.toFixed(2)} {symbol}</p>
       </div>
     </div>
   );

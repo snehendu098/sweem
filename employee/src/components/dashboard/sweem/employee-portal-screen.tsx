@@ -28,9 +28,11 @@ import {
   MoneyValue,
   SweemCard,
 } from "@/components/sweem-ui/primitives";
+import { TokenIcon } from "@/components/sweem-ui/token-icon";
 import { useMounted } from "@/components/sweem-ui/use-mounted";
 import { useSweemApi } from "@/lib/api";
-import { fromRaw, toRaw, minClaimRaw, NAVI_MIN_INVEST_USDC } from "@/lib/sweem";
+import { minClaimRaw } from "@/lib/sweem";
+import { TOKENS, toRaw, fromRaw, type TokenConfig, type TokenSymbol } from "@/lib/tokens";
 import {
   findMyStreamPools,
   readStream,
@@ -47,7 +49,7 @@ import {
   vaultInvestNaviTx,
   vaultInvestScallopTx,
   vaultHasNaviCap,
-  vaultHasUsdcBucket,
+  vaultHasBucket,
   readVaultInvestments,
   type StreamState,
   type CoverOpts,
@@ -55,6 +57,7 @@ import {
 import { DashboardPageShell } from "@/components/dashboard/dashboard-screen";
 import { Icon } from "@/components/dashboard/icons";
 import { LiveTicker } from "./live-ticker";
+import { TokenTabs } from "./token-tabs";
 import { ActionButton, AllocRow, Modal, ProtocolRow, ConnectGate } from "./ui";
 import { shortAddr } from "./helpers";
 
@@ -90,12 +93,13 @@ function saveAlloc(wallet: string, alloc: AllocPct) {
 
 interface PoolView {
   poolId: string;
+  token: TokenConfig;
   stream: StreamState;
   org: string;
   orgName: string | null;
 }
 
-// One card per stream pool. Owns the live ticking balance + claim actions.
+// One card per stream pool. Owns the live ticking balance + claim actions for its token.
 function StreamCard({
   view,
   vaultId,
@@ -115,7 +119,7 @@ function StreamCard({
   const wallet = account!.address;
   const client = useSuiClient();
   const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
-  const { poolId, stream, org, orgName } = view;
+  const { poolId, token, stream, org, orgName } = view;
 
   const [busy, setBusy] = useState(false);
   const [allocOpen, setAllocOpen] = useState(false);
@@ -127,7 +131,7 @@ function StreamCard({
     queryKey: ["claimable", poolId, wallet],
     refetchInterval: 2000,
     queryFn: async () => {
-      const raw = await readClaimable(client, poolId, wallet).catch(() => 0n);
+      const raw = await readClaimable(client, poolId, wallet, token).catch(() => 0n);
       return { raw, at: Date.now() };
     },
   });
@@ -157,7 +161,7 @@ function StreamCard({
         readPoolSummary(client, poolId),
         readPoolInvestments(client, poolId),
       ]);
-      const claimable = await readClaimable(client, poolId, wallet).catch(() => baseRaw);
+      const claimable = await readClaimable(client, poolId, wallet, token).catch(() => baseRaw);
       if (summary.idleRaw >= claimable) return { coverNavi: false, coverScallop: false };
       return { coverNavi: inv.naviRaw > 0n, coverScallop: inv.scallopRaw > 0n };
     } catch {
@@ -171,7 +175,7 @@ function StreamCard({
     try {
       const covers = await computeCovers();
       toast.loading("Withdrawing to wallet…", { id: t });
-      const { digest } = await signAndExecute({ transaction: claimToWalletTx(poolId, covers) });
+      const { digest } = await signAndExecute({ transaction: claimToWalletTx(poolId, covers, token) });
       await client.waitForTransaction({ digest, options: { showEffects: true } });
       toast.success("Claimed to wallet", { id: t });
       await claimQuery.refetch();
@@ -193,8 +197,8 @@ function StreamCard({
       });
       id = findCreatedVaultId(res.objectChanges) ?? null;
       if (!id) throw new Error("Could not find created vault id");
-      toast.loading("Initializing USDC bucket…");
-      const initd = await signAndExecute({ transaction: initBucketTx(id) });
+      toast.loading(`Initializing ${token.symbol} bucket…`);
+      const initd = await signAndExecute({ transaction: initBucketTx(id, token) });
       await client.waitForTransaction({ digest: initd.digest, options: { showEffects: true } });
       onVaultChanged(id);
     }
@@ -204,7 +208,7 @@ function StreamCard({
   // ── Claim & Allocate ────────────────────────────────────────────────────
   const walletPct = Math.max(0, 100 - alloc.save - alloc.navi - alloc.scallop);
   // Live amount preview for a percentage of the current claimable balance.
-  const amtUsdc = (pct: number) => fromRaw((baseRaw * BigInt(pct)) / 100n);
+  const amt = (pct: number) => fromRaw(token, (baseRaw * BigInt(pct)) / 100n);
   // Move one leg; clamp so the editable legs never sum past 100% (wallet ≥ 0).
   function setLeg(key: keyof AllocPct, v: number) {
     setAlloc((prev) => {
@@ -214,20 +218,20 @@ function StreamCard({
       return { ...prev, [key]: Math.max(0, Math.min(v, 100 - others)) };
     });
   }
-  const naviBelowMin = alloc.navi > 0 && amtUsdc(alloc.navi) < NAVI_MIN_INVEST_USDC;
+  const naviBelowMin = alloc.navi > 0 && amt(alloc.navi) < token.navi.minInvest;
 
   async function handleClaimAllocate() {
     setBusy(true);
     const t = toast.loading("Preparing claim…");
     try {
       // Fresh read so the split tracks accrual; wallet absorbs any rounding/dust.
-      const X = await readClaimable(client, poolId, wallet).catch(() => baseRaw);
+      const X = await readClaimable(client, poolId, wallet, token).catch(() => baseRaw);
       const naviRaw = (X * BigInt(alloc.navi)) / 100n;
       const scallopRaw = (X * BigInt(alloc.scallop)) / 100n;
       const idleRaw = (X * BigInt(alloc.save)) / 100n;
       const bucketDepositRaw = idleRaw + naviRaw + scallopRaw;
       // Navi rejects sub-minimum deposits — fold those into idle (deposited, not invested).
-      const naviMinRaw = toRaw(NAVI_MIN_INVEST_USDC);
+      const naviMinRaw = toRaw(token, token.navi.minInvest);
       const naviInvestRaw = naviRaw >= naviMinRaw ? naviRaw : 0n;
 
       let vid: string | null = null;
@@ -235,8 +239,8 @@ function StreamCard({
       let needsNaviCap = false;
       if (bucketDepositRaw > 0n) {
         vid = await ensureVault();
-        needsBucket = !(await vaultHasUsdcBucket(client, vid));
-        if (naviInvestRaw > 0n) needsNaviCap = !(await vaultHasNaviCap(client, vid));
+        needsBucket = !(await vaultHasBucket(client, vid, token));
+        if (naviInvestRaw > 0n) needsNaviCap = !(await vaultHasNaviCap(client, vid, token));
       }
 
       const covers = await computeCovers();
@@ -246,6 +250,7 @@ function StreamCard({
           poolId,
           vaultId: vid,
           wallet,
+          token,
           covers,
           bucketDepositRaw,
           naviInvestRaw,
@@ -281,21 +286,28 @@ function StreamCard({
           <p className="sweem-card-title">{orgName ?? shortAddr(org)}</p>
           <p className="sweem-card-sub">Pool {shortAddr(poolId)}</p>
         </div>
-        <span className={`sweem-badge ${badgeClass}`}>{status}</span>
+        <span className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-2 py-0.5 text-[12px] font-semibold text-[var(--sw-text-muted)]">
+            <TokenIcon token={token} size={14} />
+            {token.symbol}
+          </span>
+          <span className={`sweem-badge ${badgeClass}`}>{status}</span>
+        </span>
       </div>
 
       <div className="mt-2 flex flex-wrap items-end justify-between gap-6">
         <div>
           <p className="sweem-stat-label">Claimable now</p>
-          <p className="sweem-mono text-3xl font-semibold mt-1">
+          <p className="sweem-mono text-3xl font-semibold mt-1 flex items-center gap-2">
             <LiveTicker
               baseRaw={baseRaw}
               rateRaw={stream.rateAmountRaw}
               periodMs={stream.ratePeriodMs}
               anchorAt={polledAt}
               active={live}
-            />{" "}
-            <span className="text-base text-[color:var(--dash-faint)]">USDC</span>
+              decimals={token.decimals}
+            />
+            <span className="text-base text-[color:var(--dash-faint)]">{token.symbol}</span>
           </p>
           {!meetsMin && live && (
             <p className="sweem-hint mt-1.5">
@@ -320,7 +332,8 @@ function StreamCard({
         title="Claim & Allocate"
         subtitle={
           <>
-            Split your {fromRaw(baseRaw).toFixed(2)} USDC claim — cash gets whatever&apos;s left.
+            Split your {fromRaw(token, baseRaw).toFixed(2)} {token.symbol} claim — cash gets
+            whatever&apos;s left.
           </>
         }
         footer={
@@ -347,14 +360,16 @@ function StreamCard({
           label="Cash → wallet"
           hint="Sent to your wallet now"
           pct={walletPct}
-          usdc={amtUsdc(walletPct)}
+          amount={amt(walletPct)}
+          symbol={token.symbol}
           accent="var(--sw-text)"
         />
         <AllocRow
           label="Save (idle in vault)"
           hint="Held in your vault, ready to invest"
           pct={alloc.save}
-          usdc={amtUsdc(alloc.save)}
+          amount={amt(alloc.save)}
+          symbol={token.symbol}
           accent="var(--sw-text-dim)"
           onPct={(v) => setLeg("save", v)}
           max={100 - alloc.navi - alloc.scallop}
@@ -363,13 +378,14 @@ function StreamCard({
           label="Navi"
           hint={
             naviBelowMin
-              ? `Below ${NAVI_MIN_INVEST_USDC} USDC min — kept idle this claim`
+              ? `Below ${token.navi.minInvest} ${token.symbol} min — kept idle this claim`
               : naviApy != null
                 ? `Live APR ${naviApy.toFixed(2)}%`
                 : "Earns lending yield"
           }
           pct={alloc.navi}
-          usdc={amtUsdc(alloc.navi)}
+          amount={amt(alloc.navi)}
+          symbol={token.symbol}
           accent="var(--sw-mint)"
           onPct={(v) => setLeg("navi", v)}
           max={100 - alloc.save - alloc.scallop}
@@ -378,7 +394,8 @@ function StreamCard({
           label="Scallop"
           hint={scallopApy != null ? `Live APR ${scallopApy.toFixed(2)}%` : "Earns lending yield"}
           pct={alloc.scallop}
-          usdc={amtUsdc(alloc.scallop)}
+          amount={amt(alloc.scallop)}
+          symbol={token.symbol}
           accent="var(--sw-lavender)"
           onPct={(v) => setLeg("scallop", v)}
           max={100 - alloc.save - alloc.navi}
@@ -391,7 +408,7 @@ function StreamCard({
 /* ── Vault cards ──────────────────────────────────────────────────────── */
 
 const VAULT_ALLOC = [
-  { key: "idle", label: "Idle (USDC)", color: "var(--sw-text)" },
+  { key: "idle", label: "Idle", color: "var(--sw-text)" },
   { key: "navi", label: "Navi", color: "var(--sw-mint)" },
   { key: "scallop", label: "Scallop", color: "var(--sw-lavender)" },
 ] as const;
@@ -416,21 +433,25 @@ function projectGrowth({ idle, navi, scallop, naviApy = 0, scallopApy = 0 }: Vau
 function VaultTooltip({
   active,
   payload,
+  symbol,
 }: {
   active?: boolean;
   payload?: { payload: { label?: string; value: number } }[];
+  symbol?: string;
 }) {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
     <div className="rounded-xl border border-[var(--sw-border-strong)] bg-[#1c1c20] px-3 py-2 shadow-xl">
       <p className="text-[10px] uppercase tracking-wide text-[var(--sw-text-dim)]">{p.label}</p>
-      <p className="text-[13px] font-semibold text-white">${p.value.toFixed(2)}</p>
+      <p className="text-[13px] font-semibold text-white">
+        {p.value.toFixed(2)} {symbol}
+      </p>
     </div>
   );
 }
 
-function VaultBalanceCard({ idle, navi, scallop }: VaultParts) {
+function VaultBalanceCard({ idle, navi, scallop, token }: VaultParts & { token: TokenConfig }) {
   const mounted = useMounted();
   const total = idle + navi + scallop;
   const values: Record<string, number> = { idle, navi, scallop };
@@ -468,12 +489,11 @@ function VaultBalanceCard({ idle, navi, scallop }: VaultParts) {
                   <Cell key={i} fill={d.color} />
                 ))}
               </Pie>
-              {slices.length > 0 && <Tooltip content={<VaultTooltip />} />}
             </PieChart>
           </ResponsiveContainer>
         )}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <MoneyValue value={total} className="text-[24px] leading-none" />
+          <MoneyValue value={total} token={token} className="text-[24px] leading-none" iconSize={16} />
           <span className="mt-1 text-[11px] text-[var(--sw-text-dim)]">total value</span>
         </div>
       </div>
@@ -486,7 +506,7 @@ function VaultBalanceCard({ idle, navi, scallop }: VaultParts) {
               <span className="text-[13px] text-[var(--sw-text-muted)]">{s.label}</span>
             </span>
             <span className="text-[13px] font-semibold tabular-nums text-[var(--sw-text)]">
-              ${values[s.key].toFixed(2)}
+              {values[s.key].toFixed(2)}
             </span>
           </li>
         ))}
@@ -495,7 +515,7 @@ function VaultBalanceCard({ idle, navi, scallop }: VaultParts) {
   );
 }
 
-function VaultPositionsCard({ idle, navi, scallop, naviApy, scallopApy }: VaultParts) {
+function VaultPositionsCard({ idle, navi, scallop, naviApy, scallopApy, token }: VaultParts & { token: TokenConfig }) {
   const invested = navi + scallop;
   const sum = idle + navi + scallop || 1;
   const rows = [
@@ -511,9 +531,9 @@ function VaultPositionsCard({ idle, navi, scallop, naviApy, scallopApy }: VaultP
         </IconChip>
         <CardLabel className="text-[15px] text-[var(--sw-text)]">Positions</CardLabel>
       </div>
-      <MoneyValue value={invested} className="mt-3 text-[26px] leading-none" />
+      <MoneyValue value={invested} token={token} className="mt-3 text-[26px] leading-none" />
       <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">
-        Earning yield · ${idle.toFixed(2)} idle
+        Earning yield · {idle.toFixed(2)} {token.symbol} idle
       </p>
 
       <div className="mt-5 flex flex-1 flex-col justify-center gap-4">
@@ -531,7 +551,7 @@ function VaultPositionsCard({ idle, navi, scallop, naviApy, scallopApy }: VaultP
                   </span>
                 </span>
                 <span className="font-semibold tabular-nums text-[var(--sw-text)]">
-                  ${r.value.toFixed(2)}
+                  {r.value.toFixed(2)}
                 </span>
               </div>
               <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[var(--sw-card-inset)]">
@@ -545,7 +565,7 @@ function VaultPositionsCard({ idle, navi, scallop, naviApy, scallopApy }: VaultP
               </div>
               {annual != null && annual > 0 && (
                 <p className="mt-1.5 text-[11px] text-[var(--sw-text-dim)]">
-                  ≈ ${annual.toFixed(2)} / yr at current rate
+                  ≈ {annual.toFixed(2)} {token.symbol} / yr at current rate
                 </p>
               )}
             </div>
@@ -562,8 +582,9 @@ function VaultGrowthCard({
   scallop,
   naviApy,
   scallopApy,
+  token,
   onInvest,
-}: VaultParts & { onInvest: () => void }) {
+}: VaultParts & { token: TokenConfig; onInvest: () => void }) {
   const mounted = useMounted();
   const invested = navi + scallop;
   const series = projectGrowth({ idle, navi, scallop, naviApy, scallopApy }, 12);
@@ -595,9 +616,9 @@ function VaultGrowthCard({
       ) : (
         <>
           <div className="mt-3 flex items-end gap-2">
-            <MoneyValue value={future} className="text-[26px] leading-none" />
+            <MoneyValue value={future} token={token} className="text-[26px] leading-none" />
             <span className="mb-0.5 text-[12.5px] font-semibold text-[var(--sw-mint)]">
-              +${gain.toFixed(2)}
+              +{gain.toFixed(2)} {token.symbol}
             </span>
           </div>
           <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">
@@ -623,7 +644,7 @@ function VaultGrowthCard({
                     tickMargin={8}
                   />
                   <YAxis hide domain={["dataMin", "dataMax"]} />
-                  <Tooltip content={<VaultTooltip />} />
+                  <Tooltip content={<VaultTooltip symbol={token.symbol} />} />
                   <Area
                     type="monotone"
                     dataKey="value"
@@ -650,20 +671,22 @@ export function EmployeePortalScreen() {
   const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
 
   const [vaultId, setVaultId] = useState<string | null>(null);
+  const [vaultSymbol, setVaultSymbol] = useState<TokenSymbol>("USDC");
+  const vaultToken = TOKENS[vaultSymbol];
 
   const poolsQuery = useQuery<PoolView[]>({
     queryKey: ["myStreams", wallet],
     enabled: !!wallet,
     refetchInterval: 15000,
     queryFn: async () => {
-      const ids = await findMyStreamPools(client, wallet!);
+      const discovered = await findMyStreamPools(client, wallet!);
       const views = await Promise.all(
-        ids.map(async (poolId): Promise<PoolView | null> => {
+        discovered.map(async ({ poolId, token }): Promise<PoolView | null> => {
           const stream = await readStream(client, poolId, wallet!);
           if (!stream) return null;
           const org = await readPoolOrg(client, poolId);
           const orgName = org ? await api.getOrgName(org) : null;
-          return { poolId, stream, org, orgName };
+          return { poolId, token, stream, org, orgName };
         }),
       );
       return views.filter((v): v is PoolView => v !== null);
@@ -679,10 +702,10 @@ export function EmployeePortalScreen() {
   const effectiveVault = vaultId ?? vaultQuery.data ?? null;
 
   const vaultInvQuery = useQuery({
-    queryKey: ["vaultInv", effectiveVault],
+    queryKey: ["vaultInv", effectiveVault, vaultSymbol],
     enabled: !!effectiveVault,
     refetchInterval: 8000,
-    queryFn: () => readVaultInvestments(client, effectiveVault!),
+    queryFn: () => readVaultInvestments(client, effectiveVault!, vaultToken),
   });
 
   const [investOpen, setInvestOpen] = useState(false);
@@ -691,30 +714,31 @@ export function EmployeePortalScreen() {
   const [scallopYes, setScallopYes] = useState(true);
   const [naviAmt, setNaviAmt] = useState("");
   const [scallopAmt, setScallopAmt] = useState("");
-  const investIdleUsdc = vaultInvQuery.data ? fromRaw(vaultInvQuery.data.idleRaw) : 0;
+  const investIdle = vaultInvQuery.data ? fromRaw(vaultToken, vaultInvQuery.data.idleRaw) : 0;
 
   const yieldOpenedRef = useRef(false);
   useEffect(() => {
     if (investOpen && !yieldOpenedRef.current) {
       yieldOpenedRef.current = true;
-      api.yieldsQuery.refetch().catch(() => {});
+      api.yieldsByToken.refetch().catch(() => {});
     }
     if (!investOpen) yieldOpenedRef.current = false;
-  }, [investOpen, api.yieldsQuery]);
+  }, [investOpen, api.yieldsByToken]);
 
-  const quotes = api.yieldsQuery.data?.quotes ?? [];
-  const naviApy = quotes.find((q) => q.protocol === "NAVI")?.apy;
-  const scallopApy = quotes.find((q) => q.protocol === "SCALLOP")?.apy;
+  const vaultQuotes = api.yieldsByToken.data?.[vaultSymbol]?.quotes ?? [];
+  const vaultNaviApy = vaultQuotes.find((q) => q.protocol === "NAVI")?.apy;
+  const vaultScallopApy = vaultQuotes.find((q) => q.protocol === "SCALLOP")?.apy;
 
   const naviNum = Number(naviAmt) || 0;
   const scallopNum = Number(scallopAmt) || 0;
   const investError = (() => {
     if (naviYes) {
-      if (naviNum > investIdleUsdc) return "Navi exceeds vault idle balance";
-      if (naviNum < NAVI_MIN_INVEST_USDC) return `Navi requires at least ${NAVI_MIN_INVEST_USDC} USDC`;
+      if (naviNum > investIdle) return "Navi exceeds vault idle balance";
+      if (naviNum < vaultToken.navi.minInvest)
+        return `Navi requires at least ${vaultToken.navi.minInvest} ${vaultSymbol}`;
     }
-    if (scallopYes && scallopNum > investIdleUsdc) return "Scallop exceeds vault idle balance";
-    if (naviYes && scallopYes && naviNum + scallopNum > investIdleUsdc)
+    if (scallopYes && scallopNum > investIdle) return "Scallop exceeds vault idle balance";
+    if (naviYes && scallopYes && naviNum + scallopNum > investIdle)
       return "Combined amount exceeds vault idle balance";
     if (!naviYes && !scallopYes) return "Select at least one protocol";
     return null;
@@ -732,17 +756,17 @@ export function EmployeePortalScreen() {
     const t = toast.loading("Investing vault funds…");
     try {
       if (naviYes && naviNum > 0) {
-        const needsCap = !(await vaultHasNaviCap(client, effectiveVault));
+        const needsCap = !(await vaultHasNaviCap(client, effectiveVault, vaultToken));
         toast.loading("Investing into Navi…", { id: t });
         const r = await signAndExecute({
-          transaction: vaultInvestNaviTx(effectiveVault, toRaw(naviNum), { needsCap }),
+          transaction: vaultInvestNaviTx(effectiveVault, toRaw(vaultToken, naviNum), { needsCap }, vaultToken),
         });
         await client.waitForTransaction({ digest: r.digest, options: { showEffects: true } });
       }
       if (scallopYes && scallopNum > 0) {
         toast.loading("Investing into Scallop…", { id: t });
         const r = await signAndExecute({
-          transaction: vaultInvestScallopTx(effectiveVault, toRaw(scallopNum)),
+          transaction: vaultInvestScallopTx(effectiveVault, toRaw(vaultToken, scallopNum), vaultToken),
         });
         await client.waitForTransaction({ digest: r.digest, options: { showEffects: true } });
       }
@@ -785,20 +809,23 @@ export function EmployeePortalScreen() {
         </div>
       ) : (
         <div className="grid gap-5 mt-5">
-          {pools.map((v) => (
-            <StreamCard
-              key={v.poolId}
-              view={v}
-              vaultId={effectiveVault}
-              naviApy={naviApy}
-              scallopApy={scallopApy}
-              onAllocated={() => {
-                vaultInvQuery.refetch();
-                vaultQuery.refetch();
-              }}
-              onVaultChanged={(id) => setVaultId(id)}
-            />
-          ))}
+          {pools.map((v) => {
+            const quotes = api.yieldsByToken.data?.[v.token.symbol]?.quotes ?? [];
+            return (
+              <StreamCard
+                key={v.poolId}
+                view={v}
+                vaultId={effectiveVault}
+                naviApy={quotes.find((q) => q.protocol === "NAVI")?.apy}
+                scallopApy={quotes.find((q) => q.protocol === "SCALLOP")?.apy}
+                onAllocated={() => {
+                  vaultInvQuery.refetch();
+                  vaultQuery.refetch();
+                }}
+                onVaultChanged={(id) => setVaultId(id)}
+              />
+            );
+          })}
         </div>
       )}
 
@@ -806,35 +833,41 @@ export function EmployeePortalScreen() {
       {effectiveVault && (
         <section className="mt-6">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-[17px] font-semibold text-[var(--sw-text)]">Vault</p>
-              <p className="font-mono text-[12.5px] text-[var(--sw-text-muted)]">
-                {shortAddr(effectiveVault)}
-              </p>
+            <div className="flex items-center gap-3">
+              <div>
+                <p className="text-[17px] font-semibold text-[var(--sw-text)]">Vault</p>
+                <p className="font-mono text-[12.5px] text-[var(--sw-text-muted)]">
+                  {shortAddr(effectiveVault)}
+                </p>
+              </div>
+              <TokenTabs value={vaultSymbol} onChange={setVaultSymbol} />
             </div>
-            <ActionButton onClick={openInvest} disabled={busy || investIdleUsdc <= 0}>
+            <ActionButton onClick={openInvest} disabled={busy || investIdle <= 0}>
               Invest more
             </ActionButton>
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <VaultBalanceCard
-              idle={fromRaw(vinv?.idleRaw ?? 0n)}
-              navi={fromRaw(vinv?.naviRaw ?? 0n)}
-              scallop={fromRaw(vinv?.scallopRaw ?? 0n)}
+              idle={fromRaw(vaultToken, vinv?.idleRaw ?? 0n)}
+              navi={fromRaw(vaultToken, vinv?.naviRaw ?? 0n)}
+              scallop={fromRaw(vaultToken, vinv?.scallopRaw ?? 0n)}
+              token={vaultToken}
             />
             <VaultPositionsCard
-              idle={fromRaw(vinv?.idleRaw ?? 0n)}
-              navi={fromRaw(vinv?.naviRaw ?? 0n)}
-              scallop={fromRaw(vinv?.scallopRaw ?? 0n)}
-              naviApy={naviApy}
-              scallopApy={scallopApy}
+              idle={fromRaw(vaultToken, vinv?.idleRaw ?? 0n)}
+              navi={fromRaw(vaultToken, vinv?.naviRaw ?? 0n)}
+              scallop={fromRaw(vaultToken, vinv?.scallopRaw ?? 0n)}
+              naviApy={vaultNaviApy}
+              scallopApy={vaultScallopApy}
+              token={vaultToken}
             />
             <VaultGrowthCard
-              idle={fromRaw(vinv?.idleRaw ?? 0n)}
-              navi={fromRaw(vinv?.naviRaw ?? 0n)}
-              scallop={fromRaw(vinv?.scallopRaw ?? 0n)}
-              naviApy={naviApy}
-              scallopApy={scallopApy}
+              idle={fromRaw(vaultToken, vinv?.idleRaw ?? 0n)}
+              navi={fromRaw(vaultToken, vinv?.naviRaw ?? 0n)}
+              scallop={fromRaw(vaultToken, vinv?.scallopRaw ?? 0n)}
+              naviApy={vaultNaviApy}
+              scallopApy={vaultScallopApy}
+              token={vaultToken}
               onInvest={openInvest}
             />
           </div>
@@ -846,7 +879,12 @@ export function EmployeePortalScreen() {
         open={investOpen}
         onClose={() => setInvestOpen(false)}
         title="Invest vault funds"
-        subtitle={<>Earn yield on idle USDC in your vault. Available now: {investIdleUsdc.toFixed(2)} USDC.</>}
+        subtitle={
+          <>
+            Earn yield on idle {vaultSymbol} in your vault. Available now: {investIdle.toFixed(2)}{" "}
+            {vaultSymbol}.
+          </>
+        }
         footer={
           <>
             <ActionButton onClick={() => setInvestOpen(false)}>Skip</ActionButton>
@@ -858,19 +896,23 @@ export function EmployeePortalScreen() {
       >
         <ProtocolRow
           name="Navi"
-          apy={naviApy}
+          apy={vaultNaviApy}
           checked={naviYes}
           onChecked={setNaviYes}
           amount={naviAmt}
           onAmount={setNaviAmt}
+          symbol={vaultSymbol}
+          max={investIdle}
         />
         <ProtocolRow
           name="Scallop"
-          apy={scallopApy}
+          apy={vaultScallopApy}
           checked={scallopYes}
           onChecked={setScallopYes}
           amount={scallopAmt}
           onAmount={setScallopAmt}
+          symbol={vaultSymbol}
+          max={investIdle}
         />
         {investError && <p className="sweem-error">{investError}</p>}
       </Modal>

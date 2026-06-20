@@ -1,6 +1,7 @@
 import Papa from 'papaparse'
 import { isValidSuiAddress } from '@mysten/sui/utils'
 import type { ColumnMapping, BulkEmployeeInput, RateInput } from './api'
+import { TOKEN_SYMBOLS, type TokenSymbol } from './tokens'
 
 export interface ParsedCsv {
   headers: string[]
@@ -15,6 +16,7 @@ export interface ParsedEmployee {
   group_name: string | null
   rate_amount: number | null
   rate_type: 'MONTHLY' | 'HOURLY'
+  token: TokenSymbol
   errors: string[]
 }
 
@@ -56,6 +58,17 @@ function normalizeRateType(raw: string | undefined, fallback: 'MONTHLY' | 'HOURL
   return fallback
 }
 
+// The mapping AI doesn't surface a token column, so detect one heuristically by
+// header name and read the per-row token; anything unrecognized falls back to USDC.
+function detectTokenColumn(headers: string[]): number {
+  return headers.findIndex((h) => /token|currency|coin|asset/i.test(h))
+}
+
+function normalizeToken(raw: string): TokenSymbol {
+  const v = raw.toUpperCase()
+  return TOKEN_SYMBOLS.find((s) => v.includes(s)) ?? 'USDC'
+}
+
 // Apply the AI/heuristic column mapping to every row + validate. Pure + deterministic.
 export function applyMapping(
   csv: ParsedCsv,
@@ -70,6 +83,7 @@ export function applyMapping(
     amount: colIndex(headers, mapping.rate_amount),
     rateType: colIndex(headers, mapping.rate_type),
     group: colIndex(headers, mapping.group),
+    token: detectTokenColumn(headers),
   }
   const cell = (row: string[], i: number) => (i >= 0 ? (row[i] ?? '').trim() : '')
 
@@ -80,8 +94,9 @@ export function applyMapping(
     const groupRaw = cell(row, idx.group)
     const rate_amount = normalizeAmount(cell(row, idx.amount))
     const rate_type = normalizeRateType(cell(row, idx.rateType) || undefined, defaults.rate_type)
+    const token = idx.token >= 0 ? normalizeToken(cell(row, idx.token)) : 'USDC'
 
-    return { alias, wallet_address, email: emailRaw || null, group_name: groupRaw || null, rate_amount, rate_type, errors: validate({ alias, wallet_address, email: emailRaw, rate_amount }) }
+    return { alias, wallet_address, email: emailRaw || null, group_name: groupRaw || null, rate_amount, rate_type, token, errors: validate({ alias, wallet_address, email: emailRaw, rate_amount }) }
   })
 }
 
@@ -105,7 +120,7 @@ export function toBulkInput(rows: ParsedEmployee[]): BulkEmployeeInput[] {
   return rows
     .filter((r) => r.errors.length === 0 && r.rate_amount != null)
     .map((r) => {
-      const rates: RateInput[] = [{ token: 'USDC', rate_amount: r.rate_amount as number, rate_type: r.rate_type }]
+      const rates: RateInput[] = [{ token: r.token, rate_amount: r.rate_amount as number, rate_type: r.rate_type }]
       return {
         alias: r.alias,
         wallet_address: r.wallet_address,

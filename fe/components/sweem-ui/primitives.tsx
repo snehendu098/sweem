@@ -5,15 +5,20 @@ import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { splitMoney } from "@/lib/format";
+import type { TokenConfig } from "@/lib/tokens";
+import { TokenIcon } from "./token-icon";
 import { cardVariants, spring } from "./motion";
 
 /* ── Money value: large whole part + smaller raised cents ─────────────── */
+// Pass a `token` to lead with the coin logo instead of the "$" symbol.
 
 interface MoneyValueProps {
   value: number;
   decimals?: number;
   className?: string;
   centsClassName?: string;
+  token?: TokenConfig;
+  iconSize?: number;
 }
 
 export function MoneyValue({
@@ -21,26 +26,26 @@ export function MoneyValue({
   decimals = 2,
   className,
   centsClassName,
+  token,
+  iconSize = 18,
 }: MoneyValueProps) {
-  const { whole, cents } = splitMoney(value, decimals);
+  const { whole, cents } = splitMoney(value, decimals, "");
   return (
     <span
       className={cn(
-        "inline-flex items-start font-semibold tracking-[-0.02em] tabular-nums",
+        "inline-flex items-center font-semibold tracking-[-0.02em] tabular-nums",
         className
       )}
     >
-      <span>{whole}</span>
-      {cents ? (
-        <span
-          className={cn(
-            "ml-[0.06em] mt-[0.16em] text-[0.5em] font-medium text-[var(--sw-text-muted)]",
-            centsClassName
-          )}
-        >
-          {cents}
-        </span>
-      ) : null}
+      {token ? <TokenIcon token={token} size={iconSize} className="mr-1.5" /> : null}
+      <span className="inline-flex items-baseline">
+        <span>{whole}</span>
+        {cents ? (
+          <span className={cn("text-[0.6em] font-medium text-[var(--sw-text-dim)]", centsClassName)}>
+            {cents}
+          </span>
+        ) : null}
+      </span>
     </span>
   );
 }
@@ -129,7 +134,7 @@ interface SweemCardProps extends React.ComponentPropsWithoutRef<typeof motion.di
 export function SweemCard({
   className,
   children,
-  hover = true,
+  hover = false,
   accent = false,
   ...props
 }: SweemCardProps) {

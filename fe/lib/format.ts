@@ -9,11 +9,11 @@ export interface SplitMoney {
   cents: string;
 }
 
-export function splitMoney(value: number, decimals = 2): SplitMoney {
+export function splitMoney(value: number, decimals = 2, symbol = "$"): SplitMoney {
   const fixed = Math.abs(value).toFixed(decimals);
   const [int, dec] = fixed.split(".");
   const sign = value < 0 ? "-" : "";
-  const whole = `${sign}$${Number(int).toLocaleString("en-US")}`;
+  const whole = `${sign}${symbol}${Number(int).toLocaleString("en-US")}`;
   return { whole, cents: dec ? `.${dec}` : "" };
 }
 

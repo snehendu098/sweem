@@ -8,6 +8,7 @@
 import { useCurrentAccount, useSignPersonalMessage } from '@mysten/dapp-kit'
 import { useQuery } from '@tanstack/react-query'
 import { API_BASE } from './sweem'
+import { TOKEN_SYMBOLS, type TokenSymbol } from './tokens'
 
 function authMessage(): string {
   const rand = () => Math.random().toString(36).slice(2, 10)
@@ -134,9 +135,18 @@ export function useSweemApi() {
     queryFn: () => get<Employee[]>(`/v1/orgs/${wallet}/employees`),
   })
 
-  const yieldsQuery = useQuery<YieldResponse>({
-    queryKey: ['yields', 'USDC'],
-    queryFn: () => get<YieldResponse>(`/v1/compute/yields?token=USDC`),
+  // One yields fetch per supported token, surfaced as a map keyed by symbol.
+  const yieldsByToken = useQuery<Record<TokenSymbol, YieldResponse>>({
+    queryKey: ['yields', TOKEN_SYMBOLS],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        TOKEN_SYMBOLS.map(async (symbol) => {
+          const res = await get<YieldResponse>(`/v1/compute/yields?token=${symbol}`)
+          return [symbol, res] as const
+        }),
+      )
+      return Object.fromEntries(entries) as Record<TokenSymbol, YieldResponse>
+    },
   })
 
   return {
@@ -146,7 +156,7 @@ export function useSweemApi() {
     orgQuery,
     groupsQuery,
     employeesQuery,
-    yieldsQuery,
+    yieldsByToken,
 
     // ----- writes -----
     // Idempotent org create (409 = already exists → fine).
@@ -164,15 +174,15 @@ export function useSweemApi() {
 
     listEmployees: (w: string) => get<Employee[]>(`/v1/orgs/${w}/employees`),
 
-    createPool: (w: string, onChainPoolId: string) =>
+    createPool: (w: string, token: TokenSymbol, onChainPoolId: string) =>
       authedFetch(`/v1/orgs/${w}/pools`, 'POST', {
-        token: 'USDC',
+        token,
         on_chain_pool_id: onChainPoolId,
       }),
 
     listPools: (w: string) => get<Pool[]>(`/v1/orgs/${w}/pools`),
 
-    getYields: () => get<YieldResponse>(`/v1/compute/yields?token=USDC`),
+    getYields: (token: TokenSymbol) => get<YieldResponse>(`/v1/compute/yields?token=${token}`),
 
     // Best-effort org-name lookup for the employee portal. NEVER throws — if the
     // backend is down/unreachable the employee UI just falls back to the address.

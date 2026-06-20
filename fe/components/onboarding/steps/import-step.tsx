@@ -14,6 +14,7 @@ import {
   type ParsedCsv,
   type ParsedEmployee,
 } from "@/lib/csv";
+import { TOKEN_SYMBOLS, type TokenSymbol } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 
 type Phase = "upload" | "mapping" | "preview";
@@ -185,7 +186,8 @@ export function ImportStep({
             <tr className="text-left text-[11px] uppercase tracking-wide text-[var(--sw-text-dim)]">
               <th className="px-2 font-medium">Name</th>
               <th className="px-2 font-medium">Wallet</th>
-              <th className="px-2 font-medium">USDC</th>
+              <th className="px-2 font-medium">Rate</th>
+              <th className="px-2 font-medium">Token</th>
               <th className="px-2 font-medium">Type</th>
               <th className="px-2 font-medium">Group</th>
               <th className="px-2 font-medium">Status</th>
@@ -221,6 +223,19 @@ export function ImportStep({
                         })
                       }
                     />
+                  </td>
+                  <td className="px-1">
+                    <select
+                      className={cn(cellCls, "w-[80px]")}
+                      value={r.token}
+                      onChange={(e) => updateRow(i, { token: e.target.value as TokenSymbol })}
+                    >
+                      {TOKEN_SYMBOLS.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-1">
                     <select

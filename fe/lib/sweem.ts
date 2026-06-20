@@ -15,6 +15,10 @@ export const PROTOCOL_REGISTRY = '0xde3026a8847dc89b9b8ce456bf1e316dc60366e8564a
 export const USDC = '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC'
 export const USDC_DECIMALS = 6
 
+// Native SUI (9 decimals). Full normalized type so event MoveEventType filters match.
+export const SUI = '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI'
+export const SUI_DECIMALS = 9
+
 export const CLOCK = '0x6'
 
 // ----- Navi (mainnet, verified) -----
@@ -24,14 +28,18 @@ export const NAVI_PRICE_ORACLE = '0x1568865ed9a0b5ec414220e8f79b3d04c77acc82358f
 export const NAVI_INCENTIVE_V2 = '0xf87a8acb8b81d14307894d12595541a73f19933f88e1326d5be349c7a6f7559c'
 export const NAVI_INCENTIVE_V3 = '0x62982dad27fb10bb314b3384d5de8d2ac2d72ab2dbeae5d801dbdb9efa816c80'
 export const NAVI_POOL_USDC = '0xa3582097b4c57630046c0c49a88bfc6b202a3ec0a9db5597c31765f7563755a8'
-export const NAVI_ASSET_ID = 10
+export const NAVI_ASSET_ID_USDC = 10
+export const NAVI_POOL_SUI = '0x96df0fce3c471489f4debaaa762cf960b3d97820bd1f3f025ff8190730e958c5'
+export const NAVI_ASSET_ID_SUI = 0
 
-// ----- Scallop (mainnet, verified) -----
+// ----- Scallop (mainnet, verified). Version + Market are global singletons,
+// shared across every coin type — no per-token objects needed. -----
 export const SCALLOP_VERSION = '0x07871c4b3c847a0f674510d4978d5cf6f960452795e8ff6f189fd2088a3f6ac7'
 export const SCALLOP_MARKET = '0xa757975255146dc9686aa823b7838b507f315d704f428cbadad2f4ea061939d9'
 
-// Min Navi deposit (USDC) the protocol accepts per leg.
+// Per-leg Navi supply minimums (human units), tied to each pool's protocol min.
 export const NAVI_MIN_INVEST_USDC = 5
+export const NAVI_MIN_INVEST_SUI = 0.0055
 
 export const WEEK_MS = 604_800_000
 export const MONTH_MS = 2_592_000_000 // 30 days — the stream rate period we use
@@ -42,13 +50,7 @@ export const API_BASE =
 export const EXPLORER_TX = (digest: string) => `https://suiscan.xyz/mainnet/tx/${digest}`
 export const EXPLORER_OBJ = (id: string) => `https://suiscan.xyz/mainnet/object/${id}`
 
-// ----- amount helpers (USDC <-> raw 6dp) -----
-export function toRaw(usdc: number): bigint {
-  return BigInt(Math.round(usdc * 10 ** USDC_DECIMALS))
-}
-export function fromRaw(raw: bigint | string | number): number {
-  return Number(BigInt(raw)) / 10 ** USDC_DECIMALS
-}
+// Amount <-> base-unit conversion is token-aware; see lib/tokens.ts (toRaw/fromRaw).
 
 // Minimum claimable (raw) before stream_pool::claim will accept a claim:
 // 10% of one week's earnings at the stream rate. Rate-independent in time

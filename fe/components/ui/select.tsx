@@ -57,7 +57,8 @@ function SelectContent({
         data-slot="select-content"
         position={position}
         className={cn(
-          "relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-hidden rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card)] text-[var(--sw-text)] shadow-xl shadow-black/40",
+          // Portaled to <body>, outside the .sw-dash var scope — use explicit colors.
+          "relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-hidden rounded-xl border border-white/10 bg-[#17171a] text-[#f4f4f5] shadow-2xl shadow-black/60",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",
@@ -89,7 +90,7 @@ function SelectLabel({
     <SelectPrimitive.Label
       data-slot="select-label"
       className={cn(
-        "px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-[var(--sw-text-dim)]",
+        "px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-white/40",
         className
       )}
       {...props}
@@ -107,7 +108,7 @@ function SelectItem({
       data-slot="select-item"
       className={cn(
         "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg py-2 pl-3 pr-8 text-[14px] outline-none transition-colors",
-        "focus:bg-[var(--sw-card-inset)] focus:text-[var(--sw-text)] data-[state=checked]:text-[var(--sw-mint)]",
+        "focus:bg-white/[0.06] focus:text-[#f4f4f5] data-[state=checked]:text-[#c4f56b]",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className
       )}
@@ -116,7 +117,7 @@ function SelectItem({
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
       <span className="absolute right-2.5 flex size-4 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <CheckIcon className="size-4 text-[var(--sw-mint)]" />
+          <CheckIcon className="size-4 text-[#c4f56b]" />
         </SelectPrimitive.ItemIndicator>
       </span>
     </SelectPrimitive.Item>
@@ -130,7 +131,7 @@ function SelectSeparator({
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
-      className={cn("-mx-1 my-1 h-px bg-[var(--sw-border)]", className)}
+      className={cn("-mx-1 my-1 h-px bg-white/10", className)}
       {...props}
     />
   );
