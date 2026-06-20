@@ -1,181 +1,537 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   ArrowUp,
-  ChevronDown,
-  FolderPlus,
-  Globe,
-  Mic,
+  Loader2,
   Paperclip,
   Plus,
-  Search,
-  Sparkles,
+  X,
 } from "lucide-react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
+import { useQueryClient } from "@tanstack/react-query";
+import Papa from "papaparse";
+
+import { API_BASE, MONTH_MS } from "@/lib/sweem";
+import { TOKENS } from "@/lib/tokens";
+import { useSweemApi, type BulkEmployeeInput, type AddEmployeeInput } from "@/lib/api";
+import {
+  pauseStreamTx,
+  resumeStreamTx,
+  depositTx,
+  type EmployeeStream,
+} from "@/lib/tx";
 import { cn } from "@/lib/utils";
+import { useOrgPool } from "./use-org-pool";
+import { useAgentContext } from "./use-agent-context";
+import {
+  EmployeeListCard,
+  EmployeeDetailCard,
+  PayrollChartCard,
+  ProtocolInfoCard,
+  SdkInfoCard,
+  ActionConfirmCard,
+  ToolLoadingCard,
+  type PendingAction,
+} from "./agent-cards";
+
+// ── Suggestion chips ──────────────────────────────────────────────────────────
+
+const SUGGESTIONS = [
+  "Show all employees",
+  "Payroll breakdown by group",
+  "Which streams haven't started?",
+  "How does Sweem yield work?",
+];
+
+// ── Tool name → display label ─────────────────────────────────────────────────
+
+const TOOL_LABELS: Record<string, string> = {
+  listEmployees: "Loading employees…",
+  getEmployeeDetails: "Searching employees…",
+  analyzePayroll: "Analyzing payroll…",
+  getProtocolInfo: "Loading protocol info…",
+  getSdkInfo: "Loading SDK info…",
+  prepareAddEmployee: "Preparing action…",
+  prepareBulkAddFromCsv: "Preparing bulk import…",
+  preparePauseStream: "Preparing pause…",
+  prepareResumeStream: "Preparing resume…",
+  prepareStartStream: "Preparing stream start…",
+  prepareEditEmployee: "Preparing edit…",
+  respondWithText: "",
+};
+
+// ── Main screen ───────────────────────────────────────────────────────────────
 
 export function AiScreen() {
-  const [value, setValue] = useState("");
+  const [input, setInput] = useState("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const send = () => {
-    if (!value.trim()) return;
-    toast("Sweem AI is coming soon", {
-      description: "Conversational payroll assistant is on the way.",
-    });
+  const account = useCurrentAccount();
+  const wallet = account?.address;
+  const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
+  const client = useSuiClient();
+  const qc = useQueryClient();
+
+  const api = useSweemApi();
+  const context = useAgentContext(); // only walletAddress — server fetches org data from DB
+  const { poolIdByToken } = useOrgPool();
+
+  // Ref keeps context fresh on every send without recreating transport
+  const contextRef = useRef(context);
+  useEffect(() => { contextRef.current = context; }, [context]);
+
+  const transport = useMemo(
+    () => new DefaultChatTransport({ api: `${API_BASE}/v1/ai/chat`, body: () => ({ context: contextRef.current }) }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const { messages, sendMessage, status, setMessages } = useChat({ transport });
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
+  // ── Action execution ────────────────────────────────────────────────────────
+
+  const executeAction = useCallback(
+    async (action: PendingAction) => {
+      if (!wallet) {
+        toast.error("Connect wallet first");
+        return;
+      }
+
+      if (action.action === "pauseStream") {
+        const { employeeWallet, token, poolId } = action.data as {
+          employeeWallet: string; token: string; poolId?: string;
+        };
+        if (!poolId) { toast.error("Pool not found for this token"); return; }
+        const tx = pauseStreamTx(poolId, employeeWallet, TOKENS[token as keyof typeof TOKENS]);
+        await signAndExecute({ transaction: tx });
+        toast.success("Stream paused");
+        qc.invalidateQueries({ queryKey: ["poolState"] });
+        return;
+      }
+
+      if (action.action === "resumeStream") {
+        const { employeeWallet, token, poolId } = action.data as {
+          employeeWallet: string; token: string; poolId?: string;
+        };
+        if (!poolId) { toast.error("Pool not found for this token"); return; }
+        const tx = resumeStreamTx(poolId, employeeWallet, TOKENS[token as keyof typeof TOKENS]);
+        await signAndExecute({ transaction: tx });
+        toast.success("Stream resumed");
+        qc.invalidateQueries({ queryKey: ["poolState"] });
+        return;
+      }
+
+      if (action.action === "startStream") {
+        const { token, poolId, employees: emps } = action.data as {
+          token: string; poolId?: string; employees: Array<{ walletAddress: string; rates: Array<{ token: string; rateAmount: string; rateType: string }> }>;
+        };
+        if (!poolId) { toast.error("No pool found — create one first"); return; }
+        const tokenCfg = TOKENS[token as keyof typeof TOKENS];
+        const streams: EmployeeStream[] = emps.map((e) => {
+          const rate = e.rates.find((r) => r.token === token);
+          const rateAmount = Number(rate?.rateAmount ?? 0);
+          const rateRaw = BigInt(Math.round(rateAmount * 10 ** tokenCfg.decimals));
+          return { address: e.walletAddress, rateRaw, periodMs: BigInt(MONTH_MS) };
+        });
+        const totalRaw = streams.reduce((s, e) => s + e.rateRaw, 0n);
+        const tx = depositTx(poolId, totalRaw, streams, tokenCfg);
+        await signAndExecute({ transaction: tx });
+        toast.success("Streams started");
+        qc.invalidateQueries({ queryKey: ["poolState"] });
+        return;
+      }
+
+      if (action.action === "addEmployee") {
+        const d = action.data as {
+          alias: string; wallet_address: string; email?: string;
+          rate_amount: number; rate_type: "MONTHLY" | "HOURLY"; token: string; group_name?: string;
+        };
+        const input: AddEmployeeInput = {
+          alias: d.alias,
+          wallet_address: d.wallet_address,
+          email: d.email,
+          rates: [{ token: d.token, rate_amount: d.rate_amount, rate_type: d.rate_type }],
+        };
+        await api.addEmployee(wallet, input);
+        qc.invalidateQueries({ queryKey: ["employees"] });
+        toast.success(`Added ${d.alias}`);
+        return;
+      }
+
+      if (action.action === "bulkAdd") {
+        const rows = action.data as Array<{
+          alias: string; wallet_address: string; email?: string;
+          rate_amount?: number; rate_type?: string; token?: string; group_name?: string;
+        }>;
+        const employees: BulkEmployeeInput[] = rows.map((r) => ({
+          alias: r.alias,
+          wallet_address: r.wallet_address,
+          email: r.email,
+          group_name: r.group_name,
+          rates: r.rate_amount
+            ? [{ token: r.token ?? "USDC", rate_amount: r.rate_amount, rate_type: (r.rate_type ?? "MONTHLY") as "MONTHLY" | "HOURLY" }]
+            : [],
+        }));
+        const result = await api.bulkAddEmployees(wallet, employees);
+        qc.invalidateQueries({ queryKey: ["employees"] });
+        toast.success(`Imported ${result.created} employees (${result.skipped.length} skipped)`);
+        return;
+      }
+
+      if (action.action === "editEmployee") {
+        const { employeeId, changes } = action.data as {
+          employeeId: string; alias: string;
+          changes: { rate_amount?: number; rate_type?: string; token?: string; group_name?: string };
+        };
+        if (changes.rate_amount != null) {
+          await api.updateEmployee(wallet, employeeId, {
+            rates: [{
+              token: changes.token ?? "USDC",
+              rate_amount: changes.rate_amount,
+              rate_type: (changes.rate_type ?? "MONTHLY") as "MONTHLY" | "HOURLY",
+            }],
+          });
+          qc.invalidateQueries({ queryKey: ["employees"] });
+          toast.success("Employee updated");
+        }
+        return;
+      }
+    },
+    [wallet, api, signAndExecute, qc, client]
+  );
+
+  // ── CSV file drop ───────────────────────────────────────────────────────────
+
+  const processFile = useCallback(
+    async (file: File) => {
+      setCsvFile(file);
+      toast.info("Parsing CSV…");
+      try {
+        const text = await file.text();
+        const parsed = Papa.parse<string[]>(text, { header: false, skipEmptyLines: true });
+        const [headerRow, ...rows] = parsed.data as string[][];
+        if (!headerRow) { toast.error("Empty CSV"); return; }
+
+        // Map columns using existing AI mapping endpoint
+        const mapResult = await api.mapCsv(headerRow, rows.slice(0, 3));
+        const m = mapResult.mapping;
+
+        const employees = rows.map((row) => {
+          const get = (col: string | null) => (col ? row[headerRow.indexOf(col)] ?? "" : "");
+          return {
+            alias: get(m.alias),
+            wallet_address: get(m.wallet_address),
+            email: get(m.email) || undefined,
+            rate_amount: parseFloat(get(m.rate_amount)) || undefined,
+            rate_type: (get(m.rate_type)?.toUpperCase() || "MONTHLY") as "MONTHLY" | "HOURLY",
+            token: "USDC",
+            group_name: get(m.group) || undefined,
+          };
+        }).filter((e) => e.alias && e.wallet_address);
+
+        sendMessage({
+          text: `I've uploaded a CSV file "${file.name}" with ${employees.length} employees. Please review and prepare to bulk-add them:\n\n${JSON.stringify(employees, null, 2)}`,
+        });
+        setCsvFile(null);
+      } catch (err) {
+        toast.error("Failed to parse CSV");
+        console.error(err);
+        setCsvFile(null);
+      }
+    },
+    [api, sendMessage]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file?.name.endsWith(".csv")) processFile(file);
+      else toast.error("Drop a .csv file");
+    },
+    [processFile]
+  );
+
+  // ── Send ────────────────────────────────────────────────────────────────────
+
+  const handleSend = () => {
+    if (!input.trim() || status !== "ready") return;
+    sendMessage({ text: input.trim() });
+    setInput("");
   };
 
+  const isEmpty = messages.length === 0;
+
   return (
-    <div className="relative flex min-h-[calc(100vh-60px)] flex-col px-4 sm:px-6">
+    <div
+      className="relative flex min-h-[calc(100vh-60px)] flex-col px-4 sm:px-6"
+      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={handleDrop}
+    >
+      {/* Drag overlay */}
+      <AnimatePresence>
+        {isDragging && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          >
+            <div className="rounded-[24px] border-2 border-dashed border-[var(--sw-mint)] bg-[var(--sw-card)]/90 px-12 py-8 text-center">
+              <p className="text-[18px] font-semibold text-[var(--sw-mint)]">Drop CSV here</p>
+              <p className="mt-1 text-[13px] text-[var(--sw-text-dim)]">Employee import will be prepared automatically</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="relative z-10 flex items-center justify-between pt-4">
-        <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">Ask AI</h1>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => toast("Search coming soon")}
-            className="hidden items-center gap-2 rounded-full border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-3.5 py-2 text-[13px] font-medium text-[var(--sw-text-muted)] transition-colors hover:text-[var(--sw-text)] sm:flex"
-          >
-            <Search className="size-4" strokeWidth={2} />
-            Search thread
-          </button>
-          {/* <button
-            type="button"
-            onClick={() => toast("Folders coming soon")}
-            className="hidden items-center gap-2 rounded-full border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-3.5 py-2 text-[13px] font-medium text-[var(--sw-text-muted)] transition-colors hover:text-[var(--sw-text)] sm:flex"
-          >
-            <FolderPlus className="size-4" strokeWidth={2} />
-            Create folder
-          </button> */}
-          <button
-            type="button"
-            onClick={() => setValue("")}
-            className="flex items-center gap-1.5 rounded-full bg-[var(--sw-mint)] px-4 py-2 text-[13px] font-semibold text-black transition-colors hover:bg-[#cef77f]"
-          >
-            <Plus className="size-4" strokeWidth={2.6} />
-            New chat
-          </button>
-        </div>
+        <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">
+          Ask AI
+        </h1>
+        <button
+          type="button"
+          onClick={() => setMessages([])}
+          className="flex items-center gap-1.5 rounded-full bg-[var(--sw-mint)] px-4 py-2 text-[13px] font-semibold text-black transition-colors hover:bg-[#cef77f]"
+        >
+          <Plus className="size-4" strokeWidth={2.6} />
+          New chat
+        </button>
       </div>
 
-      {/* Centered hero + composer */}
-      <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center pb-16">
-        {/* Brand mark with glow */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.92 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: "spring", stiffness: 180, damping: 22 }}
-          className="relative mx-auto flex size-[140px] items-center justify-center"
-        >
-          <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(196,245,107,0.22),transparent_70%)] blur-xl" />
-          <Image src="/sweem.png" alt="Sweem" width={112} height={112} priority className="relative size-28" />
-        </motion.div>
+      {/* Messages */}
+      <div
+        ref={scrollRef}
+        className={cn(
+          "relative z-10 mx-auto w-full max-w-3xl flex-1 overflow-y-auto",
+          isEmpty ? "flex flex-col items-center justify-center pb-16" : "py-6"
+        )}
+      >
+        {isEmpty ? (
+          <>
+            {/* Hero */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", stiffness: 180, damping: 22 }}
+              className="relative mx-auto flex size-[140px] items-center justify-center"
+            >
+              <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(196,245,107,0.22),transparent_70%)] blur-xl" />
+              <Image src="/sweem.png" alt="Sweem" width={112} height={112} priority className="relative size-28" />
+            </motion.div>
+            <motion.h2
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 26, delay: 0.05 }}
+              className="mt-6 text-center text-[34px] font-semibold tracking-[-0.02em] sm:text-[40px]"
+            >
+              <span className="text-[var(--sw-text-dim)]">Hello, what&apos;s on </span>
+              <span className="text-[var(--sw-text)]">your mind?</span>
+            </motion.h2>
+            {/* Suggestion chips */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className="mt-6 flex flex-wrap justify-center gap-2"
+            >
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => { sendMessage({ text: s }); }}
+                  className="rounded-full border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-3.5 py-1.5 text-[13px] text-[var(--sw-text-muted)] transition-colors hover:border-[var(--sw-border-strong)] hover:text-[var(--sw-text)]"
+                >
+                  {s}
+                </button>
+              ))}
+            </motion.div>
+          </>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((msg) => (
+              <div key={msg.id} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                <div
+                  className={cn(
+                    msg.role === "user" ? "max-w-[85%]" : "w-full",
+                    msg.role === "user" && "rounded-[18px] border border-[var(--sw-mint)]/30 bg-[var(--sw-card)] px-4 py-2.5"
+                  )}
+                >
+                  {msg.parts.map((part, i) => {
+                    if (part.type === "text") {
+                      return (
+                        <p key={i} className={cn(
+                          "whitespace-pre-wrap text-[14px] leading-relaxed",
+                          msg.role === "user" ? "text-[var(--sw-text)]" : "text-[var(--sw-text-muted)]"
+                        )}>
+                          {part.text}
+                        </p>
+                      );
+                    }
 
-        <motion.h2
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 200, damping: 26, delay: 0.05 }}
-          className="mt-6 text-center text-[34px] font-semibold tracking-[-0.02em] sm:text-[40px]"
-        >
-          <span className="text-[var(--sw-text-dim)]">Hello, what&apos;s on </span>
-          <span className="text-[var(--sw-text)]">your mind?</span>
-        </motion.h2>
+                    // Tool parts — identify by type prefix
+                    const toolType = part.type as string;
 
-        {/* Composer */}
+                    // Loading state (skip for respondWithText — no spinner needed)
+                    if ("state" in part && (part.state === "input-streaming" || part.state === "input-available") && toolType !== "tool-respondWithText") {
+                      const label = TOOL_LABELS[toolType.replace("tool-", "")] ?? "Working…";
+                      return <ToolLoadingCard key={i} label={label} />;
+                    }
+
+                    // Output available
+                    if ("state" in part && part.state === "output-available" && "output" in part) {
+                      const output = part.output as Record<string, unknown>;
+
+                      if (toolType === "tool-listEmployees") {
+                        return <EmployeeListCard key={i} data={output as Parameters<typeof EmployeeListCard>[0]["data"]} />;
+                      }
+                      if (toolType === "tool-getEmployeeDetails") {
+                        return <EmployeeDetailCard key={i} data={output as Parameters<typeof EmployeeDetailCard>[0]["data"]} />;
+                      }
+                      if (toolType === "tool-analyzePayroll") {
+                        return <PayrollChartCard key={i} data={output as Parameters<typeof PayrollChartCard>[0]["data"]} />;
+                      }
+                      if (toolType === "tool-getProtocolInfo") {
+                        return <ProtocolInfoCard key={i} data={output as Parameters<typeof ProtocolInfoCard>[0]["data"]} />;
+                      }
+                      if (toolType === "tool-getSdkInfo") {
+                        return <SdkInfoCard key={i} />;
+                      }
+                      // respondWithText → render as plain assistant text
+                      if (toolType === "tool-respondWithText") {
+                        return (
+                          <p key={i} className="whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--sw-text-muted)]">
+                            {(output as { text: string }).text}
+                          </p>
+                        );
+                      }
+                      // All prepare* tools return a pendingAction or error
+                      if (toolType.startsWith("tool-prepare")) {
+                        return (
+                          <ActionConfirmCard
+                            key={i}
+                            result={output as PendingAction | { error: true; message: string }}
+                            onConfirm={executeAction}
+                          />
+                        );
+                      }
+                    }
+
+                    return null;
+                  })}
+                </div>
+              </div>
+            ))}
+            {status === "submitted" && (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-2 text-[13px] text-[var(--sw-text-dim)]">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Thinking…
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Input area — sticky at bottom */}
+      <div className="relative z-10 mx-auto w-full max-w-3xl pb-6">
+        {csvFile && (
+          <div className="mb-2 flex items-center gap-2 rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card)] px-3 py-2">
+            <span className="text-[12px] text-[var(--sw-text-muted)]">{csvFile.name}</span>
+            <button type="button" onClick={() => setCsvFile(null)} className="ml-auto text-[var(--sw-text-dim)] hover:text-[var(--sw-text)]">
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 190, damping: 26, delay: 0.1 }}
-          className="mt-8 flex min-h-[176px] flex-col rounded-[24px] border border-[var(--sw-border)] bg-[var(--sw-card)] p-4 shadow-[0_24px_60px_-30px_rgba(0,0,0,0.8)] focus-within:border-[var(--sw-border-strong)]"
+          transition={{ type: "spring", stiffness: 190, damping: 26 }}
+          className={cn(
+            "flex min-h-[120px] flex-col rounded-[24px] border bg-[var(--sw-card)] p-4 shadow-[0_24px_60px_-30px_rgba(0,0,0,0.8)]",
+            isDragging
+              ? "border-[var(--sw-mint)]"
+              : "border-[var(--sw-border)] focus-within:border-[var(--sw-border-strong)]"
+          )}
         >
           <div className="relative flex-1">
-            {!value && (
-              <div className="pointer-events-none absolute left-1 top-0 flex flex-wrap items-center gap-2 text-[15px]">
-                {/* <Sparkles className="size-4 text-[var(--sw-mint)]" strokeWidth={2} /> */}
-                <span className="text-[var(--sw-text)]">Ask me anything — I&apos;m your AI assistant</span>
-                <span className="text-[var(--sw-text-dim)]">with advanced capabilities!</span>
+            {!input && (
+              <div className="pointer-events-none absolute left-1 top-0 text-[15px] text-[var(--sw-text-dim)]">
+                Ask anything — employees, streams, payroll…
               </div>
             )}
             <textarea
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  send();
+                  handleSend();
                 }
               }}
-              rows={4}
+              rows={3}
               className="w-full resize-none bg-transparent px-1 text-[15px] text-[var(--sw-text)] outline-none"
             />
           </div>
-
-          {/* Toolbar */}
           <div className="mt-2 flex items-center justify-between">
             <div className="flex items-center gap-1">
-              <ToolbarButton icon={<Paperclip className="size-[15px]" strokeWidth={2} />} label="Attach" onClick={() => toast("Attachments coming soon")} />
-              <ToolbarButton icon={<Globe className="size-[15px]" strokeWidth={2} />} label="Search" onClick={() => toast("Search coming soon")} />
-              <span className="mx-1 h-4 w-px bg-[var(--sw-border)]" />
-              <ToolbarButton
-                icon={null}
-                label="Writing Styles"
-                trailing={<ChevronDown className="size-3.5" strokeWidth={2.2} />}
-                onClick={() => toast("Writing styles coming soon")}
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); e.target.value = ""; }}
               />
-            </div>
-            <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => toast("Voice coming soon")}
-                title="Voice"
-                className="flex size-9 items-center justify-center rounded-full text-[var(--sw-text-dim)] transition-colors hover:bg-[var(--sw-card-inset)] hover:text-[var(--sw-text)]"
+                onClick={() => fileRef.current?.click()}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-[var(--sw-text-muted)] transition-colors hover:bg-[var(--sw-card-inset)] hover:text-[var(--sw-text)]"
               >
-                <Mic className="size-[18px]" strokeWidth={1.9} />
+                <Paperclip className="size-[15px]" strokeWidth={2} />
+                Attach CSV
               </button>
-              <button
-                type="button"
-                onClick={send}
-                disabled={!value.trim()}
-                title="Send"
-                className={cn(
-                  "flex size-9 items-center justify-center rounded-full transition-colors",
-                  value.trim()
-                    ? "bg-[var(--sw-mint)] text-black hover:bg-[#cef77f]"
-                    : "bg-[var(--sw-card-inset)] text-[var(--sw-text-dim)]"
-                )}
-              >
+            </div>
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!input.trim() || status !== "ready"}
+              className={cn(
+                "flex size-9 items-center justify-center rounded-full transition-colors",
+                input.trim() && status === "ready"
+                  ? "bg-[var(--sw-mint)] text-black hover:bg-[#cef77f]"
+                  : "bg-[var(--sw-card-inset)] text-[var(--sw-text-dim)]"
+              )}
+            >
+              {status === "streaming" || status === "submitted" ? (
+                <Loader2 className="size-[18px] animate-spin" />
+              ) : (
                 <ArrowUp className="size-[18px]" strokeWidth={2.4} />
-              </button>
-            </div>
+              )}
+            </button>
           </div>
         </motion.div>
+        <p className="mt-2 text-center text-[11px] text-[var(--sw-text-dim)]">
+          Drag & drop a CSV to import employees · Shift+Enter for new line
+        </p>
       </div>
     </div>
-  );
-}
-
-function ToolbarButton({
-  icon,
-  label,
-  trailing,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  trailing?: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-[var(--sw-text-muted)] transition-colors hover:bg-[var(--sw-card-inset)] hover:text-[var(--sw-text)]"
-    >
-      {icon}
-      {label}
-      {trailing}
-    </button>
   );
 }

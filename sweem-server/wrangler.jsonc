@@ -17,7 +17,7 @@
     },
     "mainnet": {
       "name": "sweem-server-mainnet",
-      "vars": { "SUI_NETWORK": "mainnet", "ALLOWED_ORIGIN": "http://localhost:3000", "RESEND_FROM": "Sweem <onboarding@resend.dev>", "EMAIL_DEV_MODE": "true" },
+      "vars": { "SUI_NETWORK": "mainnet", "ALLOWED_ORIGIN": "http://localhost:3000,https://sweem.vercel.app", "RESEND_FROM": "Sweem <onboarding@resend.dev>", "EMAIL_DEV_MODE": "true" },
       "ai": { "binding": "AI" },
       "hyperdrive": [{ "binding": "DB", "id": "c4faee31e1fc45eea7ea121ff56b7313" }]
     }
