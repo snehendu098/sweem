@@ -837,14 +837,6 @@ function GroupDistributionCard({
         <div className="mt-2 h-[150px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 22, right: 4, bottom: 0, left: 4 }} barCategoryGap="28%">
-              <defs>
-                {chartData.map((d, i) => (
-                  <linearGradient key={i} id={`grp-grad-${i}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={d.color} stopOpacity={1} />
-                    <stop offset="100%" stopColor={d.color} stopOpacity={0.35} />
-                  </linearGradient>
-                ))}
-              </defs>
               <XAxis
                 dataKey="label"
                 axisLine={false}
@@ -863,7 +855,7 @@ function GroupDistributionCard({
                   fontWeight={600}
                 />
                 {chartData.map((d, i) => (
-                  <Cell key={i} fill={`url(#grp-grad-${i})`} />
+                  <Cell key={i} fill={d.color} />
                 ))}
               </Bar>
             </BarChart>

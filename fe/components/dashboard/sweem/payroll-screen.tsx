@@ -338,16 +338,6 @@ function MonthlyPayrollCard({
         ) : mounted ? (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 22, right: 4, bottom: 0, left: 4 }} barCategoryGap="28%">
-              <defs>
-                <linearGradient id="pay-mint" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--sw-mint)" stopOpacity={1} />
-                  <stop offset="100%" stopColor="var(--sw-mint)" stopOpacity={0.35} />
-                </linearGradient>
-                <linearGradient id="pay-lav" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--sw-lavender)" stopOpacity={1} />
-                  <stop offset="100%" stopColor="var(--sw-lavender)" stopOpacity={0.35} />
-                </linearGradient>
-              </defs>
               <XAxis
                 dataKey="name"
                 axisLine={false}
@@ -371,7 +361,7 @@ function MonthlyPayrollCard({
                   fontWeight={600}
                 />
                 {data.map((_, i) => (
-                  <Cell key={i} fill={i % 2 === 0 ? "url(#pay-mint)" : "url(#pay-lav)"} />
+                  <Cell key={i} fill={i % 2 === 0 ? "var(--sw-mint)" : "var(--sw-lavender)"} />
                 ))}
               </Bar>
             </BarChart>
