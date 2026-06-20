@@ -1,4 +1,8 @@
 import { FeatureCard } from "@/components/features/feature-card";
+import { IdleYieldMap } from "@/components/features/idle-yield-map";
+import { YieldRouting } from "@/components/confidence/yield-routing";
+import { RunwayMeter } from "@/components/features/runway-meter";
+import { StreamControl } from "@/components/features/stream-control";
 import { Reveal } from "@/components/motion/reveal";
 import { Section } from "@/components/layout/section";
 import { SectionHeading } from "@/components/layout/section-heading";
@@ -71,7 +75,19 @@ export function FeaturesSection() {
       <div className="grid gap-6 lg:grid-cols-2">
         {rowOne.map((card, index) => (
           <Reveal key={card.id} delay={index * 0.08}>
-            <FeatureCard {...card} aspect="aspect-[3/2]" align="left" large />
+            <FeatureCard
+              {...card}
+              aspect="aspect-[3/2]"
+              align="left"
+              large
+              media={
+                card.id === "instant-transfers" ? (
+                  <IdleYieldMap />
+                ) : card.id === "global-payments" ? (
+                  <YieldRouting />
+                ) : undefined
+              }
+            />
           </Reveal>
         ))}
       </div>
@@ -79,7 +95,19 @@ export function FeaturesSection() {
       <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {rowTwo.map((card, index) => (
           <Reveal key={card.id} delay={index * 0.08}>
-            <FeatureCard {...card} aspect="aspect-[16/15]" align="center" />
+            <FeatureCard
+              {...card}
+              aspect="aspect-[16/15]"
+              align="center"
+              media={
+                card.id === "rewards" ? (
+                  <RunwayMeter />
+                ) : card.id === "analytics" ? (
+                  <StreamControl />
+                ) : undefined
+              }
+              frameClassName={card.id === "security" ? "bg-[#0a0c10]" : undefined}
+            />
           </Reveal>
         ))}
       </div>

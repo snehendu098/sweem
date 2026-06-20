@@ -130,9 +130,6 @@ export function Sidebar({
           collapsed ? "justify-center px-0" : "px-5"
         )}
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--sw-mint)] text-[15px] font-bold text-black">
-          S
-        </span>
         {!collapsed && (
           <>
             <span className="text-[17px] font-semibold tracking-[-0.02em]">Sweem</span>

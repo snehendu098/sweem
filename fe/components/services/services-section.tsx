@@ -38,8 +38,8 @@ function TileCopy({ title, desc }: { title: string; desc: string }) {
 }
 
 const yields = [
-  { name: "Navi", apy: "6.4%", color: "#1c6fd0" },
-  { name: "Scallop", apy: "5.8%", color: "#5db8f0" },
+  { name: "Navi", apy: "6.4%", logo: "/protocols/lending/navi.webp" },
+  { name: "Scallop", apy: "5.8%", logo: "/protocols/lending/scallop.png" },
 ];
 
 const allocation = [
@@ -73,8 +73,8 @@ export function ServicesSection() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* A — feature: real-time streaming (wide) */}
         <Reveal className="md:col-span-2">
-          <Tile className="h-full rounded-[28px] bg-gradient-to-b from-white to-surface p-7">
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-[11px] font-medium text-brand">
+          <Tile className="h-full rounded-[28px] bg-surface p-7">
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium text-brand">
               Core engine
             </span>
             <div className="mt-5">
@@ -97,7 +97,7 @@ export function ServicesSection() {
                   className="flex items-center justify-between rounded-xl border border-border bg-white px-3 py-2.5"
                 >
                   <span className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
-                    <span className="size-2.5 rounded-full" style={{ background: y.color }} />
+                    <img src={y.logo} alt={y.name} className="size-5 rounded-full object-contain" />
                     {y.name}
                   </span>
                   <span className="flex items-center gap-1 text-[13px] font-semibold text-brand">

@@ -86,9 +86,7 @@ export function OrgHome() {
           <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">
             {org ? org.name : "Overview"}
           </h1>
-          <p className="mt-0.5 text-[13px] text-[var(--sw-text-muted)]">
-            Streaming payroll · live on Sui mainnet
-          </p>
+          
         </div>
       </div>
 

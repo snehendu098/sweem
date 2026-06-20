@@ -22,6 +22,10 @@ export type FeatureCardProps = {
   /** Optional image src (under /public). Falls back to the placeholder when absent. */
   image?: string;
   imageAlt?: string;
+  /** Custom media node rendered in the frame instead of the image (e.g. an interactive visual). */
+  media?: React.ReactNode;
+  /** Extra classes for the image frame (e.g. a dark backdrop behind a transparent image). */
+  frameClassName?: string;
 };
 
 export function FeatureCard({
@@ -33,14 +37,18 @@ export function FeatureCard({
   tag,
   image,
   imageAlt = "",
+  media,
+  frameClassName,
 }: FeatureCardProps) {
   const centered = align === "center";
 
   return (
     <article className="group relative h-full overflow-hidden rounded-[22px] bg-white p-3 ring-1 ring-border shadow-[0_1px_2px_rgba(16,24,40,0.05)] transition-[box-shadow] duration-300 hover:ring-brand/20">
       {/* image frame — zooms only on hover */}
-      <div className={cn("relative w-full overflow-hidden rounded-[16px] bg-[#f1f2f4]", aspect)}>
-        {image ? (
+      <div className={cn("relative w-full overflow-hidden rounded-[16px] bg-[#f1f2f4]", aspect, frameClassName)}>
+        {media ? (
+          media
+        ) : image ? (
           <img
             src={image}
             alt={imageAlt}
