@@ -1,33 +1,40 @@
-# Dashboard → dark bento look, Sweem-branded, real data
+# Migrate employee portal → standalone `employee/` app
 
-Goal: replace present Sweem dashboard look with dark bento aesthetic (dark + mint/lavender),
-rebrand template→Sweem, keep ALL present features wired (on-chain + API), full-screen,
-optimized bento. End-to-end functional.
+Goal: standalone Next.js app at `employee/` containing the full employee portal. Slim top-bar chrome (wallet connect), no org sidebar. `fe/` keeps its copies (shared libs copied, not moved).
 
-## Tasks
-- [x] Scoped `.rv-dash` dark theme + legacy-class overrides (Payroll/Employees/Portal/
-      placeholders go dark, no logic change)
-- [x] Rewrite shell: dashboard-layout, sidebar, navbar, wallet-button (Sweem dark,
-      full-screen, Sweem brand; keep nav items + wallet connect/disconnect/copy)
-- [x] Rebuild Overview (org-home) as Sweem bento wired to real useOrgPool data:
-      live streamed ticker, pool composition donut, per-employee analytics bars,
-      recent on-chain activity, yields, create-org gate, Fund/Employees/Portal CTAs
-- [x] Keep providers.tsx + dashboard/layout.tsx (react-query + Sui wallet) untouched
-- [x] Verify: tsc + next build clean; /dashboard + feature routes render (all 200)
+Key fact: `employee` alias `@/*` → `./src/*`. So all `@/...` and relative imports copy VERBATIM as long as layout under `src/` mirrors `fe/` root. Portal becomes the app's root route (`src/app/page.tsx`).
+
+## Steps
+
+- [ ] 1. package.json: add deps from fe (@mysten/dapp-kit, @mysten/sui, @tanstack/react-query, framer-motion, lucide-react, radix-ui, recharts, sonner, lenis, clsx, tailwind-merge). Align next/react versions to fe.
+- [ ] 2. next.config.ts: add turbopack root pin (HMR fix, same as fe).
+- [ ] 3. Copy libs → `src/lib/`: utils.ts, format.ts, api.ts, sweem.ts, tx.ts
+- [ ] 4. Copy shared UI:
+      - `src/components/sweem-ui/`: primitives.tsx, use-mounted.ts, motion.ts
+      - `src/components/dashboard/`: icons.tsx, dashboard-screen.tsx, providers.tsx, wallet-button.tsx
+      - `src/components/dashboard/sweem/`: employee-portal-screen.tsx, ui.tsx, live-ticker.tsx, helpers.ts
+      - `src/components/ui/`: scroll-area.tsx
+      - `src/components/providers/`: smooth-scroll.tsx
+- [ ] 5. Copy `app/globals.css` → `src/app/globals.css` VERBATIM (3053 lines; `.sw-dash`-scoped `--sw-*` theme vars are critical).
+- [ ] 6. NEW `src/components/dashboard/employee-shell.tsx`: client; = dashboard-layout MINUS sidebar/scrim. Keeps `.sw-dash` wrapper + ambient glow + ScrollArea. Wraps DashboardProviders + slim navbar + Toaster.
+- [ ] 7. NEW slim navbar (or trim navbar.tsx): brand + WalletButton (+ Support/Feedback). Drop sidebar menu toggle.
+- [ ] 8. Rewrite `src/app/layout.tsx`: fonts (Poppins/Geist/Inter), globals.css, metadata, SmoothScroll → EmployeeShell.
+- [ ] 9. Rewrite `src/app/page.tsx`: `<EmployeePortalScreen />`.
+- [ ] 10. `.env.local` / note: NEXT_PUBLIC_NETWORK=mainnet, NEXT_PUBLIC_API_BASE (has default).
+- [ ] 11. Verify: `bun install` + `bun run build` in `employee/`. Fix type/import errors.
+
+## NOT copied (org-only): sidebar.tsx, dashboard-layout.tsx, org-home.tsx, payroll/employees screens, navbar.tsx (replaced by slim).
 
 ## Review
-- Shell rewritten to full-screen Sweem dark (h-screen flex, sidebar + topbar + scroll main).
-  Sweem brand, real nav items + routes, wallet connect/disconnect/copy preserved.
-- Overview = Sweem bento on REAL data (useOrgPool/useSweemApi/readRecentActivity): live
-  streamed ticker, pool composition, monthly-payroll recharts bars, recent on-chain
-  activity w/ explorer links, live Navi/Scallop APY, connect + create-org gates,
-  Fund-payroll green CTA. Reuses components/bento primitives + grid + motion.
-- Other feature screens (Payroll/Employees/Portal/placeholders) inherit dark via
-  `.rv-dash` legacy overrides in globals.css — zero logic change, fully functional.
-- Caught: CSS comment `*/` inside `.dashboard-*/.sweem-*` closed the comment early →
-  dev 500. Fixed by rewording. tsc + next build clean; routes 200.
-- NOT committed. No browser tool to screenshot — review at localhost:3000/dashboard.
-
-## Notes
-- Accent colors kept; only brand text/logo → Sweem.
-- Bento primitives reused from components/bento/*.
+- DONE. Standalone `employee/` app builds clean (`bun run build`, next 16.2.7) and
+  serves `/` → 200 with `.sw-dash` theme + Sweem brand + wallet connect rendering.
+- 21 files copied verbatim into `src/` (alias `@/*`→`./src/*` made imports resolve as-is).
+- New: employee-shell.tsx (dashboard-layout minus sidebar/scrim, keeps .sw-dash + glow +
+  scroll), employee-navbar.tsx (slim: brand + Support/Feedback + wallet). layout.tsx
+  (fonts + SmoothScroll + EmployeeShell), page.tsx (EmployeePortalScreen).
+- Configs: package.json (fe runtime deps incl. shadcn + tw-animate-css, versions aligned),
+  next.config.ts (turbopack root pin), tsconfig target ES2017→ES2020 (BigInt literals),
+  .env.local (NEXT_PUBLIC_NETWORK=mainnet + API_BASE).
+- Gotchas hit: missing tw-animate-css + shadcn (globals.css @imports); ES2017 target broke
+  BigInt literals in tx readers.
+- fe/ untouched — shared libs copied, not moved. NOT committed.
