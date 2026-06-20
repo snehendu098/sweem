@@ -355,7 +355,7 @@ function MonthlyPayrollCard({
                   dataKey="value"
                   position="top"
                   offset={8}
-                  formatter={(v: number) => v.toFixed(2)}
+                  formatter={(v) => Number(v ?? 0).toFixed(2)}
                   fill="var(--sw-text-muted)"
                   fontSize={11}
                   fontWeight={600}
