@@ -5,7 +5,7 @@ import { createDb } from '../db/client'
 import { orgPools, employees } from '../db/schema'
 import { createSuiClient, getObjectFields } from '../lib/sui'
 import { computeSlicePerMs } from '../lib/slice'
-import { resolveMaxYield, fetchNaviApy, fetchScallopApy, type YieldQuote } from '../lib/yield'
+import { resolveMaxYield, collectYields } from '../lib/yield'
 import type { AppEnv } from '../types'
 
 export async function getSlice(c: Context<AppEnv>) {
@@ -61,19 +61,18 @@ export async function getMaxYield(c: Context<AppEnv>) {
   const token = c.req.query('token')
   if (!token) throw new HTTPException(400, { message: 'token required' })
 
-  const result = await resolveMaxYield(token)
+  const sui = createSuiClient(c.env.SUI_NETWORK)
+  const result = await resolveMaxYield(token, sui)
   return c.json({ token, ...result })
 }
 
-// Per-protocol live supply APRs (Navi + Scallop) for the invest popup.
+// Per-protocol live supply APRs for the invest popup. Covers every protocol that
+// supports `token`: Navi/Scallop (+Suilend) for both; USDY for USDC; stSUI for SUI.
 export async function getYields(c: Context<AppEnv>) {
   const token = c.req.query('token')
   if (!token) throw new HTTPException(400, { message: 'token required' })
 
-  const settled = await Promise.allSettled([fetchNaviApy(token), fetchScallopApy(token)])
-  const quotes: YieldQuote[] = settled
-    .filter((r): r is PromiseFulfilledResult<YieldQuote> => r.status === 'fulfilled')
-    .map((r) => r.value)
-
+  const sui = createSuiClient(c.env.SUI_NETWORK)
+  const quotes = await collectYields(token, sui)
   return c.json({ token, quotes })
 }

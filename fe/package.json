@@ -10,11 +10,13 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.210",
+    "@cetusprotocol/aggregator-sdk": "^1.6.1",
     "@mysten/dapp-kit": "^1.1.0",
     "@mysten/sui": "^2.18.0",
     "@tanstack/react-query": "^5.101.0",
     "@xyflow/react": "^12.11.0",
     "ai": "^6.0.208",
+    "bn.js": "^5.2.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
@@ -35,6 +37,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bn.js": "^5.2.0",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19",

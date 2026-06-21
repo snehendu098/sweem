@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const PROTOCOLS = ['SCALLOP', 'NAVI', 'USDY', 'BUCKET', 'AUTO_MAX_YIELD'] as const
+const PROTOCOLS = ['SCALLOP', 'NAVI', 'SUILEND', 'USDY', 'STSUI', 'BUCKET', 'AUTO_MAX_YIELD'] as const
 const YIELD_TYPES = ['L', 'Y', 'S'] as const
 
 export const createVaultSchema = z.object({

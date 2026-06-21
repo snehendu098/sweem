@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { ProtocolLogo } from "@/components/sweem-ui/protocol-logo";
+import { cn } from "@/lib/utils";
 
 // Small shared primitives for the Sweem dashboard screens. Styled with the
 // `.sweem-*` classes (which reuse the dashboard --dash-* tokens) so everything
@@ -118,6 +119,7 @@ export function PercentChips({
 // Pass `max` to show 25/50/75/Max quick-fill chips beneath the input.
 export function ProtocolRow({
   name,
+  label,
   apy,
   checked,
   onChecked,
@@ -127,6 +129,7 @@ export function ProtocolRow({
   max,
 }: {
   name: string;
+  label?: string;
   apy: number | undefined;
   checked: boolean;
   onChecked: (v: boolean) => void;
@@ -146,7 +149,7 @@ export function ProtocolRow({
         />
         <ProtocolLogo name={name} size={26} />
         <div className="flex-1">
-          <p className="text-[13px] font-semibold text-[color:var(--dash-text)]">{name}</p>
+          <p className="text-[13px] font-semibold text-[color:var(--dash-text)]">{label ?? name}</p>
           <p className="sweem-hint">
             Live APR: {apy == null ? "…" : `${apy.toFixed(2)}%`}
           </p>
@@ -217,6 +220,63 @@ export function AllocRow({
           {pct}%
         </p>
         <p className="sweem-hint tabular-nums">{amount.toFixed(2)} {symbol}</p>
+      </div>
+    </div>
+  );
+}
+
+// Slippage selector for USDY swaps (Cetus). Value is in basis points (100 = 1%).
+export function SlippageInput({
+  bps,
+  onBps,
+  disabled,
+}: {
+  bps: number;
+  onBps: (v: number) => void;
+  disabled?: boolean;
+}) {
+  const presets = [50, 100, 200]; // 0.5%, 1%, 2%
+  return (
+    <div className="rounded-2xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] p-3.5">
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] font-semibold text-[color:var(--dash-text)]">Max slippage</p>
+        <span className="text-[12px] font-semibold tabular-nums text-[var(--sw-text-muted)]">
+          {(bps / 100).toFixed(2)}%
+        </span>
+      </div>
+      <p className="sweem-hint mt-0.5">USDY routes via a Cetus swap — thin pool, keep amounts small.</p>
+      <div className="mt-2.5 flex items-center gap-1.5">
+        {presets.map((p) => (
+          <button
+            key={p}
+            type="button"
+            disabled={disabled}
+            onClick={() => onBps(p)}
+            className={cn(
+              "rounded-lg border px-2.5 py-1 text-[11.5px] font-medium transition-colors disabled:opacity-40",
+              bps === p
+                ? "border-[var(--sw-border-strong)] bg-[var(--sw-card)] text-[var(--sw-text)]"
+                : "border-[var(--sw-border)] text-[var(--sw-text-muted)] hover:text-[var(--sw-text)]"
+            )}
+          >
+            {p / 100}%
+          </button>
+        ))}
+        <div className="ml-auto flex items-center gap-1 rounded-lg border border-[var(--sw-border)] bg-[#1b1b1f] px-2 py-1 focus-within:border-[var(--sw-mint)]/60">
+          <input
+            type="number"
+            inputMode="decimal"
+            disabled={disabled}
+            className="w-14 bg-transparent text-right text-[12.5px] font-semibold tabular-nums text-[var(--sw-text)] outline-none"
+            placeholder="1.0"
+            value={bps ? bps / 100 : ""}
+            onChange={(e) => {
+              const pct = Number(e.target.value);
+              if (Number.isFinite(pct) && pct >= 0) onBps(Math.round(pct * 100));
+            }}
+          />
+          <span className="text-[12px] text-[var(--sw-text-muted)]">%</span>
+        </div>
       </div>
     </div>
   );
