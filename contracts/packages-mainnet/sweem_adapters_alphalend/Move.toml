@@ -1,0 +1,38 @@
+[package]
+name = "sweem_adapters_alphalend"
+edition = "2024"
+
+# AlphaFi AlphaLend lending adapter (yield_type L = 0). FULL adapter API
+# (pool + vault + cover_claim + org_withdraw), mirroring `sweem_adapters::navi`.
+#
+# SEPARATE package from `sweem_adapters` on purpose. AlphaLend's dependency tree
+# (alpha_lending -> alphafi_oracle -> Pyth -> Wormhole, plus Cetus/Bluefin/Bridge
+# pinned to an older Sui-framework rev `664b05b3...`) clashes with the framework
+# rev that `sweem_adapters` already resolves through Navi/Scallop. Isolating this
+# adapter in its own package, depending ONLY on AlphaLend (not Suilend/Navi/etc.),
+# avoids the clash. The adapter pattern allows it: `registry::is_approved` checks
+# only the protocol NAME; the registered `adapter_package` address can be anything.
+
+[dependencies]
+# Note: the `sui_system` named address (SuiSystemState) needed by the AlphaLend
+# `alpha_lending` module is supplied by the vendored `alpha_lending/Move.toml`
+# SuiSystem dependency (see ./vendor). This package's own module does not reference
+# SuiSystemState, so no SuiSystem dep is declared here.
+sweem_core = { local = "../sweem_core" }
+sweem_registry = { local = "../sweem_registry" }
+openzeppelin_math = { git = "https://github.com/OpenZeppelin/contracts-sui.git", subdir = "math/core", rev = "6df7fd42f6560a65bc487a9d5858ee22f65400f7" }
+# Transitive via sweem_registry; declared directly so tests can name AccessControl
+# when exercising the registry approval gate.
+openzeppelin_access = { git = "https://github.com/OpenZeppelin/contracts-sui.git", subdir = "contracts/access", rev = "6df7fd42f6560a65bc487a9d5858ee22f65400f7" }
+
+# AlphaLend on-chain interfaces. Provides the `alpha_lending`, `market`,
+# `position`, and (transitively) `alphafi_oracle::oracle` types this adapter calls
+# into. VENDORED under ./vendor (from
+# github.com/AlphaFiTech/alphalend-contracts-interfaces @ 4b3c8350...) because the
+# upstream `alpha_lending` manifest omits a `SuiSystem`/`sui_system` address and
+# does not compile as-is; the vendored copy adds only that one missing dependency.
+# Sources are byte-for-byte upstream; only Move.toml was patched.
+alpha_lending = { local = "./vendor/alpha_lending" }
+# Note: USDY (yield_type Y) was moved to a dependency-free hold-adapter in the main
+# `sweem_adapters` package (swap happens in the UI/PTB, not on-chain), so no Cetus
+# dependency is needed here. This package is AlphaLend-only.

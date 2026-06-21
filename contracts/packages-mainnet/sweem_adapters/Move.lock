@@ -23,19 +23,19 @@ manifest_digest = "3876920E3F5449B657525E749B996C31141507452514AF2E259F5441554DC
 deps = { Sui = "Sui_1" }
 
 [pinned.mainnet.MoveStdlib]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "367fd808279bed26f7c64fc63160062a2ee29ab7" }
+source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "718ae563a42fb4ba0d055588f81c704dcef58c25" }
 use_environment = "mainnet"
 manifest_digest = "C4FE4C91DE74CBF223B2E380AE40F592177D21870DC2D7EB6227D2D694E05363"
 deps = {}
 
 [pinned.mainnet.MoveStdlib_1]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "d10b7db79a6634acbc483ad8633a7d27fe3bc7c8" }
+source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "1f6e1e6dd72dc75ac4037b3d4e38e73b133c5ef6" }
 use_environment = "mainnet"
 manifest_digest = "C4FE4C91DE74CBF223B2E380AE40F592177D21870DC2D7EB6227D2D694E05363"
 deps = {}
 
 [pinned.mainnet.MoveStdlib_2]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "14bf3e318215db21415c7c0ab0c01cf8d7ef594a" }
+source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "041c5f2bae2fe52079e44b70514333532d69f4e6" }
 use_environment = "mainnet"
 manifest_digest = "C4FE4C91DE74CBF223B2E380AE40F592177D21870DC2D7EB6227D2D694E05363"
 deps = {}
@@ -46,6 +46,12 @@ use_environment = "mainnet"
 manifest_digest = "C981BFE5D31B50DB795278F9617725C1C2AEDFE52970A2E02D2B5636175470AB"
 deps = { Sui = "Sui_1", Wormhole = "Wormhole" }
 
+[pinned.mainnet.Pyth_1]
+source = { git = "https://github.com/solendprotocol/pyth-crosschain.git", subdir = "target_chains/sui/contracts", rev = "f272d1208a4d34ad5e65e344946f731819af99f6" }
+use_environment = "mainnet"
+manifest_digest = "F2C5AF85C4B72C8F6A8132D05DE4F787F4EB80DBFF812331ED65AE599E7DF92A"
+deps = { Sui = "Sui_2", Wormhole = "Wormhole_1" }
+
 [pinned.mainnet.ScallopProtocol]
 source = { git = "https://github.com/scallop-io/sui-lending-protocol.git", subdir = "contracts/protocol", rev = "334e93a1232a1d9417466080ae24491be3f7b27c" }
 use_environment = "mainnet"
@@ -53,25 +59,25 @@ manifest_digest = "A91D5B1E1A8E663F005C45833346765F113FED7FFCC93A0E938717DEB8DE0
 deps = { CoinDecimalsRegistry = "CoinDecimalsRegistry", Decimal = "Decimal", Math = "Math", Sui = "Sui_1", TestCoin = "TestCoin", Whitelist = "Whitelist", X = "X", XOracle = "XOracle" }
 
 [pinned.mainnet.Sui]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "367fd808279bed26f7c64fc63160062a2ee29ab7" }
+source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "718ae563a42fb4ba0d055588f81c704dcef58c25" }
 use_environment = "mainnet"
 manifest_digest = "CD547CB1ACCE0880C835DAED2D8FFCB91D56C833AE5240D3AA5B918398263195"
 deps = { MoveStdlib = "MoveStdlib" }
 
 [pinned.mainnet.SuiSystem]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-system", rev = "367fd808279bed26f7c64fc63160062a2ee29ab7" }
+source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-system", rev = "718ae563a42fb4ba0d055588f81c704dcef58c25" }
 use_environment = "mainnet"
 manifest_digest = "CCBB2DE961DACC94644C65D54E808DEF86BC7E9C42A494D5250CC5F99392E069"
 deps = { MoveStdlib = "MoveStdlib", Sui = "Sui" }
 
 [pinned.mainnet.Sui_1]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "d10b7db79a6634acbc483ad8633a7d27fe3bc7c8" }
+source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "1f6e1e6dd72dc75ac4037b3d4e38e73b133c5ef6" }
 use_environment = "mainnet"
 manifest_digest = "CD547CB1ACCE0880C835DAED2D8FFCB91D56C833AE5240D3AA5B918398263195"
 deps = { MoveStdlib = "MoveStdlib_1" }
 
 [pinned.mainnet.Sui_2]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "14bf3e318215db21415c7c0ab0c01cf8d7ef594a" }
+source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "041c5f2bae2fe52079e44b70514333532d69f4e6" }
 use_environment = "mainnet"
 manifest_digest = "CD547CB1ACCE0880C835DAED2D8FFCB91D56C833AE5240D3AA5B918398263195"
 deps = { MoveStdlib = "MoveStdlib_2" }
@@ -86,7 +92,13 @@ deps = { Sui = "Sui_1", supra_validator = "supra_validator" }
 source = { git = "https://github.com/naviprotocol/navi-smart-contracts.git", subdir = "switchboard_sui/on_demand", rev = "473b0934235d6dc1357fa4309308167c6d175fd1" }
 use_environment = "mainnet"
 manifest_digest = "BA49968BFF7C4A4D9F013B59535CF8B89D935A7C6D63C121606B1FE844829B72"
-deps = { Sui = "Sui_2" }
+deps = { Sui = "Sui_1" }
+
+[pinned.mainnet.Switchboard_1]
+source = { git = "https://github.com/switchboard-xyz/sui.git", subdir = "on_demand", rev = "c3053f782b40ea5100d3f60d476b4dc55469ff34" }
+use_environment = "mainnet"
+manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5ECF6"
+deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.TestCoin]
 source = { git = "https://github.com/scallop-io/sui-lending-protocol.git", subdir = "contracts/test_coin", rev = "334e93a1232a1d9417466080ae24491be3f7b27c" }
@@ -105,6 +117,12 @@ source = { git = "https://github.com/naviprotocol/wormhole.git", subdir = "sui/w
 use_environment = "mainnet"
 manifest_digest = "3876920E3F5449B657525E749B996C31141507452514AF2E259F5441554DCDDF"
 deps = { Sui = "Sui_1" }
+
+[pinned.mainnet.Wormhole_1]
+source = { git = "https://github.com/wormhole-foundation/wormhole.git", subdir = "sui/wormhole", rev = "b71be5cbb9537c4aac8e23e74371affa3825efcd" }
+use_environment = "mainnet"
+manifest_digest = "0D766A0380B75080707CFA6099AF469A2E502B0D9DC334A9E9983B391C5555D9"
+deps = { Sui = "Sui_2" }
 
 [pinned.mainnet.X]
 source = { git = "https://github.com/scallop-io/sui-lending-protocol.git", subdir = "contracts/libs/x", rev = "334e93a1232a1d9417466080ae24491be3f7b27c" }
@@ -130,6 +148,12 @@ use_environment = "mainnet"
 manifest_digest = "5088FADDD8E68B81993124941C625140D78354C8DCD372C440055B66B7604874"
 deps = { std = "MoveStdlib", sui = "Sui", sui_system = "SuiSystem" }
 
+[pinned.mainnet.liquid_staking_1]
+source = { git = "https://github.com/solendprotocol/liquid-staking.git", subdir = "contracts", rev = "49f757384e69065ab082dc2fcf653f4b285a1940" }
+use_environment = "mainnet"
+manifest_digest = "5088FADDD8E68B81993124941C625140D78354C8DCD372C440055B66B7604874"
+deps = { std = "MoveStdlib", sui = "Sui", sui_system = "SuiSystem" }
+
 [pinned.mainnet.openzeppelin_access]
 source = { git = "https://github.com/OpenZeppelin/contracts-sui.git", subdir = "contracts/access", rev = "6df7fd42f6560a65bc487a9d5858ee22f65400f7" }
 use_environment = "mainnet"
@@ -148,6 +172,18 @@ use_environment = "mainnet"
 manifest_digest = "4CAB268A410A256ECF644699EE89290129097BF4C5152476FBECA6AD693B9C42"
 deps = { SupraOracle = "SupraOracle", pyth = "Pyth", std = "MoveStdlib", sui = "Sui", switchboard = "Switchboard" }
 
+[pinned.mainnet.sprungsui]
+source = { git = "https://github.com/solendprotocol/suilend.git", subdir = "contracts/sprungsui", rev = "d5ba83a617bb0778b48b0c3b1e77a87be81258ca" }
+use_environment = "mainnet"
+manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5ECF6"
+deps = { std = "MoveStdlib", sui = "Sui" }
+
+[pinned.mainnet.suilend]
+source = { git = "https://github.com/solendprotocol/suilend.git", subdir = "contracts/suilend", rev = "d5ba83a617bb0778b48b0c3b1e77a87be81258ca" }
+use_environment = "mainnet"
+manifest_digest = "6BCFE0711E0DE51834A168820C7CEAA03149F8E00ADC6BD93BADC4694D7443AD"
+deps = { liquid_staking = "liquid_staking_1", pyth = "Pyth_1", sprungsui = "sprungsui", std = "MoveStdlib", sui = "Sui", sui_system = "SuiSystem", switchboard = "Switchboard_1" }
+
 [pinned.mainnet.supra_utils]
 source = { git = "https://github.com/naviprotocol/supra-oracle.git", subdir = "supra_utils", rev = "0d41a846e75cff18da44e462260bf60c73417c8e" }
 use_environment = "mainnet"
@@ -163,8 +199,8 @@ deps = { Sui = "Sui_1", supra_utils = "supra_utils" }
 [pinned.mainnet.sweem_adapters]
 source = { root = true }
 use_environment = "mainnet"
-manifest_digest = "91921BE43280F1906008B9FDDD54FA1A60C78DED314CF90FCAD049157E7949F0"
-deps = { lending_core = "lending_core", openzeppelin_math = "openzeppelin_math", oracle = "oracle", protocol = "ScallopProtocol", std = "MoveStdlib", sui = "Sui", sweem_core = "sweem_core", sweem_registry = "sweem_registry", x = "X" }
+manifest_digest = "3317C23E8435E5CEC578EBC759ED3F35FC53DF668BD58035C598DB486F52216B"
+deps = { lending_core = "lending_core", openzeppelin_math = "openzeppelin_math", oracle = "oracle", protocol = "ScallopProtocol", pyth = "Pyth", std = "MoveStdlib", sui = "Sui", suilend = "suilend", sweem_core = "sweem_core", sweem_registry = "sweem_registry", switchboard = "Switchboard_1", x = "X" }
 
 [pinned.mainnet.sweem_core]
 source = { local = "../sweem_core" }

@@ -1,0 +1,33 @@
+[package]
+name = "sweem_adapters_stsui"
+edition = "2024"
+
+# AlphaFi stSUI liquid-staking adapter (yield_type S = 2), VAULT-ONLY.
+#
+# This is a SEPARATE package from `sweem_adapters` on purpose: AlphaFi's
+# `liquid_staking` Move package name collides with Suilend's `liquid_staking`
+# dependency already pulled into `sweem_adapters`. They are different on-chain
+# packages sharing one Move name, so they cannot coexist in a single build tree.
+# Keeping this adapter in its own package (depending on AlphaFi, NOT Suilend)
+# avoids the clash. The adapter pattern allows this: `registry::is_approved`
+# only checks the protocol NAME, and the registered `adapter_package` address
+# can be any package.
+
+[dependencies]
+# `sui_system` (for SuiSystemState at 0x5) is a built-in system package; declare it
+# explicitly so the `sui_system` named address is exposed to this package.
+# override resolves the duplicate sui_system (0x3) AlphaFi pins to a different
+# framework rev; both are the same on-chain system package.
+sui_system = { system = "sui_system", override = true }
+sweem_core = { local = "../sweem_core" }
+sweem_registry = { local = "../sweem_registry" }
+openzeppelin_math = { git = "https://github.com/OpenZeppelin/contracts-sui.git", subdir = "math/core", rev = "6df7fd42f6560a65bc487a9d5858ee22f65400f7" }
+# Transitive via sweem_registry; declared directly so tests can name AccessControl
+# when exercising the registry approval gate. Same rev as sweem_registry pins.
+openzeppelin_access = { git = "https://github.com/OpenZeppelin/contracts-sui.git", subdir = "contracts/access", rev = "6df7fd42f6560a65bc487a9d5858ee22f65400f7" }
+# AlphaFi liquid-staking (mint/redeem + LiquidStakingInfo<P>) and the stSUI coin
+# witness type. Both live in github.com/AlphaFiTech/liquid-staking, different
+# subdirs, pinned to the same rev. They carry edition "2024.beta" themselves;
+# deps keep their own edition independent of this package's.
+liquid_staking = { git = "https://github.com/AlphaFiTech/liquid-staking.git", subdir = "contracts", rev = "f65b1bb8685bc07559d7aca9f48d876f3de75034" }
+stsui = { git = "https://github.com/AlphaFiTech/liquid-staking.git", subdir = "stsui", rev = "f65b1bb8685bc07559d7aca9f48d876f3de75034" }

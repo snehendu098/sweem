@@ -7,7 +7,8 @@
     "typecheck": "tsc --noEmit",
     "admin-setup": "bun run src/admin-setup.ts",
     "e2e:split-pool": "bun run src/e2e-split-pool.ts",
-    "e2e:vault": "bun run src/e2e-vault.ts"
+    "e2e:vault": "bun run src/e2e-vault.ts",
+    "e2e:suilend": "bun run src/e2e-suilend.ts"
   },
   "dependencies": {
     "@mysten/sui": "^2.17.0"
