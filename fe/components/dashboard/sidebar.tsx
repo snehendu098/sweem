@@ -50,7 +50,6 @@ const navItems: readonly NavItem[] = [
       { label: "Webhooks", href: "/dashboard/developer/webhooks" },
       { label: "Documentation", href: "/dashboard/developer/documentation" },
       { label: "API reference", href: "/dashboard/developer/api-reference" },
-      { label: "Get test tokens", href: "/dashboard/developer/test-tokens" },
       { label: "Components", href: "/dashboard/developer/component" },
     ],
   },

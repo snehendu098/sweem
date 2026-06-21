@@ -9,6 +9,7 @@ import employeeRoutes from './employees.routes'
 import poolRoutes from './pools.routes'
 import emailRoutes from './email.routes'
 import invoiceRoutes from './invoices.routes'
+import keyRoutes from './keys.routes'
 
 const orgs = new Hono<AuthEnv>()
 
@@ -21,5 +22,6 @@ orgs.route('/:wallet/employees', employeeRoutes)
 orgs.route('/:wallet/pools', poolRoutes)
 orgs.route('/:wallet/email', emailRoutes)
 orgs.route('/:wallet/invoices', invoiceRoutes)
+orgs.route('/:wallet/keys', keyRoutes)
 
 export default orgs

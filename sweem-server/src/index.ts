@@ -7,6 +7,7 @@ import vaultRoutes    from './routes/vaults.routes'
 import computeRoutes  from './routes/compute.routes'
 import aiRoutes       from './routes/ai.routes'
 import employeeRoutes from './routes/employee.routes'
+import checkoutRoutes from './routes/checkout.routes'
 import { serveAttachment } from './controllers/invoices.controllers'
 
 const app = new Hono<AppEnv>()
@@ -16,6 +17,9 @@ const app = new Hono<AppEnv>()
 // origin. We echo back the request origin when it is in the allowlist.
 app.use('*', cors({
   origin: (origin, c) => {
+    // Public checkout config is called by the SDK from ANY merchant site — echo
+    // back whatever origin asks (it carries no credentials/cookies).
+    if (c.req.path.startsWith('/v1/checkout')) return origin ?? '*'
     const allowed = (c.env.ALLOWED_ORIGIN ?? 'http://localhost:3000')
       .split(',')
       .map((o: string) => o.trim())
@@ -31,6 +35,7 @@ app.route('/v1/vaults',   vaultRoutes)
 app.route('/v1/compute',  computeRoutes)
 app.route('/v1/ai',       aiRoutes)
 app.route('/v1/employee', employeeRoutes)
+app.route('/v1/checkout', checkoutRoutes)
 app.get('/v1/attachments/:wallet/:file', serveAttachment)
 
 app.onError((err, c) => {

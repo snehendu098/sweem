@@ -25,6 +25,21 @@ export const emailVerifications = pgTable('email_verifications', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Publishable API keys for the @sweem/react checkout SDK. One org can have many.
+// `receivingAddress` is OPTIONAL — when null the checkout falls back to the org's
+// own wallet address. `revokedAt` null = active.
+export const apiKeys = pgTable('api_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgWallet: text('org_wallet').notNull().references(() => organizations.walletAddress, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  key: text('key').notNull().unique(),                 // pk_live_…  (client-safe)
+  receivingAddress: text('receiving_address'),         // optional override; falls back to orgWallet
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('idx_api_keys_org').on(t.orgWallet),
+])
+
 // Payment groups are OFF-CHAIN categories (Engineering, Marketing, …). They do
 // NOT own a pool — everyone in an org streams from the org's single pool.
 export const paymentGroups = pgTable('payment_groups', {
@@ -122,6 +137,11 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   employees: many(employees),
   pools: many(orgPools),
   invoices: many(invoices),
+  apiKeys: many(apiKeys),
+}))
+
+export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+  org: one(organizations, { fields: [apiKeys.orgWallet], references: [organizations.walletAddress] }),
 }))
 
 export const paymentGroupsRelations = relations(paymentGroups, ({ one, many }) => ({

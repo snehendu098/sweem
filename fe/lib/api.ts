@@ -81,6 +81,15 @@ export interface Invoice {
   employee?: { alias: string; walletAddress: string }
 }
 
+export interface ApiKeyRow {
+  id: string
+  orgWallet: string
+  name: string
+  key: string
+  receivingAddress: string | null
+  createdAt: string
+}
+
 export interface YieldQuote {
   protocol: 'NAVI' | 'SCALLOP'
   apy: number
@@ -215,6 +224,14 @@ export function useSweemApi() {
     queryFn: () => get<Employee[]>(`/v1/orgs/${wallet}/employees`),
   })
 
+  // Publishable API keys for the checkout SDK. Read is unauthenticated (keys are
+  // client-safe); create/revoke are wallet-signed.
+  const apiKeysQuery = useQuery<ApiKeyRow[]>({
+    queryKey: ['apiKeys', wallet],
+    enabled: !!wallet && hasOrg,
+    queryFn: () => get<ApiKeyRow[]>(`/v1/orgs/${wallet}/keys`),
+  })
+
   // One yields fetch per supported token, surfaced as a map keyed by symbol.
   const yieldsByToken = useQuery<Record<TokenSymbol, YieldResponse>>({
     queryKey: ['yields', TOKEN_SYMBOLS],
@@ -237,6 +254,16 @@ export function useSweemApi() {
     groupsQuery,
     employeesQuery,
     yieldsByToken,
+    apiKeysQuery,
+
+    // ----- API keys (checkout SDK) -----
+    createApiKey: (name: string, receivingAddress?: string) =>
+      authedFetch(`/v1/orgs/${wallet}/keys`, 'POST', {
+        name,
+        ...(receivingAddress ? { receiving_address: receivingAddress } : {}),
+      }),
+
+    revokeApiKey: (id: string) => authedFetch(`/v1/orgs/${wallet}/keys/${id}`, 'DELETE'),
 
     // ----- writes -----
     // Idempotent org create (409 = already exists → fine).
