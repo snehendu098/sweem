@@ -24,14 +24,11 @@ import { cn } from "@/lib/utils";
 
 type Phase = "upload" | "parsing" | "preview" | "done";
 
-// Demo team — valid-format Sui addresses with tiny monthly salaries (each <= $1)
+// Demo team — real Sui addresses with tiny monthly salaries (each <= $1)
 // so the whole flow can be tried on mainnet for a few cents total.
-const DEMO_SUFFIX = "deadbeef".repeat(7); // 56 hex chars; + 8-char prefix = 64
 const DEMO_TEAM: { alias: string; wallet: string; rate: number; group: string }[] = [
-  { alias: "Alex Rivera", wallet: `0xa1ec0001${DEMO_SUFFIX}`, rate: 0.3, group: "Engineering" },
-  { alias: "Mia Chen", wallet: `0xb1a00002${DEMO_SUFFIX}`, rate: 0.25, group: "Design" },
-  { alias: "Sam Patel", wallet: `0x5a300003${DEMO_SUFFIX}`, rate: 0.2, group: "Growth" },
-  { alias: "Noah Kim", wallet: `0xc0a40004${DEMO_SUFFIX}`, rate: 0.15, group: "Operations" },
+  { alias: "Alex Rivera", wallet: "0xfd5cffd7d18ca0597af1a43649adb389ba4d668aa4ba286a55c9d16bc9bd9142", rate: 0.3, group: "Engineering" },
+  { alias: "Mia Chen", wallet: "0x84af37f4f89106409e26e3fa8f87428327f18813595c12f02c878a9fe8ce035b", rate: 0.25, group: "Design" },
 ];
 
 export function ImportStep({
