@@ -5,7 +5,11 @@ export const NETWORK = 'mainnet' as const
 
 // Published packages
 export const CORE = '0x4c582aea3efe99fb68deea8b71b96eda6fba06001ed5588da83799c09f9179b4'
-export const ADAPTERS = '0x8f0943975ec6f56f97e197713041b192e8ff9b4461c0a496bf129ed37b2866eb'
+// sweem_adapters V3 (navi, scallop, suilend, usdy). NOTE: the old V1 orphan
+// 0x8f09…66eb only had navi+scallop — never point ADAPTERS at it again.
+export const ADAPTERS = '0x25070661b4157bcdfc1ac19df47dcf9472341b222debdc623a85ef383c11da58'
+// stSUI lives in its own dep-isolated package (vault-only LST adapter).
+export const ADAPTERS_STSUI = '0x5f5a978fae2e07737e3cac2395ee30092d6c8512a98e18e785c250916d6c2090'
 
 // Shared registry objects
 export const PROTOCOL_CONFIG = '0x303eb1778420425b1b590452bdaf039e4c6d46431bd502fdad028a305d3d04f1'
@@ -36,6 +40,21 @@ export const NAVI_ASSET_ID_SUI = 0
 // shared across every coin type — no per-token objects needed. -----
 export const SCALLOP_VERSION = '0x07871c4b3c847a0f674510d4978d5cf6f960452795e8ff6f189fd2088a3f6ac7'
 export const SCALLOP_MARKET = '0xa757975255146dc9686aa823b7838b507f315d704f428cbadad2f4ea061939d9'
+
+// ----- Suilend (mainnet, verified). Generic <T>; the lending market resolves the
+// reserve on-chain, so no per-token pkg/reserve args are needed. -----
+export const SUILEND_LENDING_MARKET = '0x84030d26d85eaa7035084a057f2f11f701b7e2e4eda87551becbc7c97505ece1'
+
+// ----- stSUI (SpringSui LST, mainnet). VAULT-ONLY, SUI-fixed, non-generic. -----
+export const STSUI_LST_INFO = '0x1adb343ab351458e151bc392fbf1558b3332467f23bda45ae67cd355a57fd5f5'
+export const STSUI_SYSTEM_STATE = '0x5' // SuiSystemState singleton
+
+// ----- USDY (Ondo, mainnet). 2-step hot-potato adapter; the USDC<->USDY swap
+// happens in the PTB via Cetus (see lib/cetus.ts), not on-chain. -----
+export const USDY_TYPE = '0x960b531667636f39e85867775f52f6b1f220a058c4de786905bdf761e06a56bb::usdy::USDY'
+// Cetus Pool<USDY, wormholeUSDC> — thin liquidity; size swaps small + enforce min_out.
+export const USDY_CETUS_POOL = '0x0e809689d04d87f4bd4e660cd1b84bf5448c5a7997e3d22fc480e7e5e0b3f58d'
+export const WORMHOLE_USDC = '0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN'
 
 // Per-leg Navi supply minimums (human units), tied to each pool's protocol min.
 export const NAVI_MIN_INVEST_USDC = 5

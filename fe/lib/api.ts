@@ -91,7 +91,7 @@ export interface ApiKeyRow {
 }
 
 export interface YieldQuote {
-  protocol: 'NAVI' | 'SCALLOP'
+  protocol: 'NAVI' | 'SCALLOP' | 'SUILEND' | 'USDY' | 'STSUI'
   apy: number
 }
 

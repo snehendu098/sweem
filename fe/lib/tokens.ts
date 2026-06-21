@@ -23,6 +23,12 @@ export interface TokenConfig {
   bucketName: string // employee_vault TokenBucket key
   icon: string // public path to the coin logo
   navi: { poolId: string; assetId: number; minInvest: number } // minInvest in human units
+  // Suilend has no per-token on-chain objects (the lending market resolves the
+  // reserve), so this is just a UI floor. Absent → suilend not offered for the token.
+  suilend?: { minInvest: number }
+  // USDY routes via a Cetus USDC<->USDY swap, so it only makes sense for USDC.
+  // minInvest is a small UI floor (no on-chain min). Absent → usdy not offered.
+  usdy?: { minInvest: number }
 }
 
 export const TOKENS: Record<TokenSymbol, TokenConfig> = {
@@ -33,6 +39,8 @@ export const TOKENS: Record<TokenSymbol, TokenConfig> = {
     bucketName: 'USDC',
     icon: '/tokens/usdc.svg',
     navi: { poolId: NAVI_POOL_USDC, assetId: NAVI_ASSET_ID_USDC, minInvest: NAVI_MIN_INVEST_USDC },
+    suilend: { minInvest: 0.1 },
+    usdy: { minInvest: 0.1 },
   },
   SUI: {
     symbol: 'SUI',
@@ -41,6 +49,7 @@ export const TOKENS: Record<TokenSymbol, TokenConfig> = {
     bucketName: 'SUI',
     icon: '/tokens/sui.jpg',
     navi: { poolId: NAVI_POOL_SUI, assetId: NAVI_ASSET_ID_SUI, minInvest: NAVI_MIN_INVEST_SUI },
+    suilend: { minInvest: 0.01 },
   },
 }
 
