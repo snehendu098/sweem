@@ -469,13 +469,14 @@ export function PayrollScreen() {
     return quotes.find((q) => q.protocol === enumKey)?.apy;
   };
 
-  // Reset the descriptor-driven invest state for the current protocol set: all
-  // checked, empty amounts. Called whenever an invest dialog is opened.
+  // Reset the descriptor-driven invest state for the current protocol set: none
+  // checked, empty amounts. Called whenever an invest dialog is opened. User
+  // picks protocols manually.
   function resetInvestForm() {
     const checked = {} as Record<ProtocolKey, boolean>;
     const amounts = {} as Record<ProtocolKey, string>;
     for (const p of protocols) {
-      checked[p.key] = true;
+      checked[p.key] = false;
       amounts[p.key] = "";
     }
     setCheckedByKey(checked);
