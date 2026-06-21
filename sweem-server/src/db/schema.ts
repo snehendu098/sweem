@@ -121,6 +121,7 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   groups: many(paymentGroups),
   employees: many(employees),
   pools: many(orgPools),
+  invoices: many(invoices),
 }))
 
 export const paymentGroupsRelations = relations(paymentGroups, ({ one, many }) => ({
@@ -137,6 +138,7 @@ export const employeesRelations = relations(employees, ({ one, many }) => ({
   org: one(organizations, { fields: [employees.orgWallet], references: [organizations.walletAddress] }),
   group: one(paymentGroups, { fields: [employees.groupId], references: [paymentGroups.id] }),
   rates: many(employeeTokenRates),
+  invoices: many(invoices),
 }))
 
 export const employeeTokenRatesRelations = relations(employeeTokenRates, ({ one }) => ({
@@ -153,4 +155,30 @@ export const vaultAllocationsRelations = relations(vaultAllocations, ({ one }) =
 
 export const lastYieldRoutesRelations = relations(lastYieldRoutes, ({ one }) => ({
   pool: one(orgPools, { fields: [lastYieldRoutes.orgPoolId], references: [orgPools.id] }),
+}))
+
+export const invoices = pgTable('invoices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgWallet: text('org_wallet').notNull(),
+  employeeId: uuid('employee_id').notNull(),
+  amount: numeric('amount').notNull(),
+  token: text('token').notNull(),
+  description: text('description').notNull(),
+  status: text('status').notNull().default('PENDING'),
+  dueDate: timestamp('due_date', { withTimezone: true }),
+  attachmentKey: text('attachment_key'),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+}, (t) => [
+  foreignKey({ columns: [t.orgWallet], foreignColumns: [organizations.walletAddress], name: 'inv_org_fk' }).onDelete('cascade'),
+  foreignKey({ columns: [t.employeeId], foreignColumns: [employees.id], name: 'inv_emp_fk' }).onDelete('cascade'),
+  index('idx_invoices_org').on(t.orgWallet),
+  index('idx_invoices_employee').on(t.employeeId),
+  index('idx_invoices_status').on(t.status),
+])
+
+export const invoicesRelations = relations(invoices, ({ one }) => ({
+  org: one(organizations, { fields: [invoices.orgWallet], references: [organizations.walletAddress] }),
+  employee: one(employees, { fields: [invoices.employeeId], references: [employees.id] }),
 }))

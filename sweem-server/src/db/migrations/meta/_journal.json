@@ -15,6 +15,20 @@
       "when": 1781941120235,
       "tag": "0001_clever_prima",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782030272220,
+      "tag": "0002_volatile_titania",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782030911482,
+      "tag": "0003_chemical_colossus",
+      "breakpoints": true
     }
   ]
 }

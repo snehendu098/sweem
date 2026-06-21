@@ -2,10 +2,12 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import type { AppEnv } from './types'
-import orgRoutes     from './routes/orgs.routes'
-import vaultRoutes   from './routes/vaults.routes'
-import computeRoutes from './routes/compute.routes'
-import aiRoutes      from './routes/ai.routes'
+import orgRoutes      from './routes/orgs.routes'
+import vaultRoutes    from './routes/vaults.routes'
+import computeRoutes  from './routes/compute.routes'
+import aiRoutes       from './routes/ai.routes'
+import employeeRoutes from './routes/employee.routes'
+import { serveAttachment } from './controllers/invoices.controllers'
 
 const app = new Hono<AppEnv>()
 
@@ -24,10 +26,12 @@ app.use('*', cors({
   maxAge: 600,
 }))
 
-app.route('/v1/orgs',    orgRoutes)
-app.route('/v1/vaults',  vaultRoutes)
-app.route('/v1/compute', computeRoutes)
-app.route('/v1/ai',      aiRoutes)
+app.route('/v1/orgs',     orgRoutes)
+app.route('/v1/vaults',   vaultRoutes)
+app.route('/v1/compute',  computeRoutes)
+app.route('/v1/ai',       aiRoutes)
+app.route('/v1/employee', employeeRoutes)
+app.get('/v1/attachments/:wallet/:file', serveAttachment)
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
