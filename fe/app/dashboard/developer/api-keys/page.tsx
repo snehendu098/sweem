@@ -7,6 +7,7 @@ import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, Trash2, X } from "luc
 import { isValidSuiAddress } from "@mysten/sui/utils";
 import { cn } from "@/lib/utils";
 import { useSweemApi, type ApiKeyRow } from "@/lib/api";
+import { TreasuryPanel } from "@/components/dashboard/sweem/treasury-panel";
 
 const mask = (k: string) => `${k.slice(0, 11)}${"•".repeat(12)}${k.slice(-4)}`;
 const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -213,6 +214,9 @@ import { SweemPayButton } from "@sweem/react";
           </pre>
         </div>
       </div>
+
+      {/* Earn yield on received payments */}
+      <TreasuryPanel />
 
       <CreateKeyModal
         open={createOpen}

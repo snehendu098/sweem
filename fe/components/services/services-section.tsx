@@ -42,10 +42,10 @@ const yields = [
   { name: "Scallop", apy: "5.8%", logo: "/protocols/lending/scallop.png" },
 ];
 
-const allocation = [
+const allocation: { label: string; pct: number; color: string; logo?: string }[] = [
   { label: "Wallet", pct: 40, color: "#0a0e16" },
-  { label: "Navi", pct: 35, color: "#1c6fd0" },
-  { label: "Scallop", pct: 25, color: "#7cc0f2" },
+  { label: "Navi", pct: 35, color: "#1c6fd0", logo: "/protocols/lending/navi.webp" },
+  { label: "Scallop", pct: 25, color: "#7cc0f2", logo: "/protocols/lending/scallop.png" },
 ];
 
 function TrendUp() {
@@ -143,7 +143,12 @@ export function ServicesSection() {
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
                 {allocation.map((a) => (
                   <span key={a.label} className="flex items-center gap-1.5 text-[12px] text-text-secondary">
-                    <span className="size-2 rounded-full" style={{ background: a.color }} />
+                    {a.logo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={a.logo} alt={a.label} className="size-4 rounded-full object-contain" />
+                    ) : (
+                      <span className="size-2 rounded-full" style={{ background: a.color }} />
+                    )}
                     {a.label}
                     <span className="font-semibold text-text-primary">{a.pct}%</span>
                   </span>
