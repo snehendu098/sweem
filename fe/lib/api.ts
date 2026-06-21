@@ -75,6 +75,7 @@ export interface Invoice {
   dueDate: string | null
   attachmentKey: string | null
   note: string | null
+  txHash: string | null
   createdAt: string
   paidAt: string | null
   employee?: { alias: string; walletAddress: string }
@@ -338,6 +339,18 @@ export function useSweemApi() {
           sendAuthed(creds, `/v1/orgs/${w}/invoices/${u.id}`, 'PUT', { status: u.status, note: u.note }),
         ),
       )
+    },
+
+    // Mark PAID by submitting the on-chain payment digest — backend verifies the
+    // tx credited the employee, so no wallet message signature is needed here.
+    payOrgInvoice: async (w: string, id: string, txHash: string) => {
+      const res = await fetch(`${API_BASE}/v1/orgs/${w}/invoices/${id}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tx_hash: txHash }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.message ?? `Pay failed: ${res.status}`)
+      return res.json()
     },
 
   }

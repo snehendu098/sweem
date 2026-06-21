@@ -5,7 +5,7 @@ import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useSweemApi, type Invoice, type InvoiceStatus, type EmployeeOrgEntry } from "@/lib/api";
-import { SweemCard, CardLabel } from "@/components/sweem-ui/primitives";
+import { CardLabel } from "@/components/sweem-ui/primitives";
 import { ActionButton, Modal } from "./ui";
 import { API_BASE } from "@/lib/sweem";
 import { TOKENS, type TokenSymbol } from "@/lib/tokens";
@@ -128,14 +128,17 @@ export function InvoicesSection() {
         </ActionButton>
       </div>
 
-      <SweemCard>
-        {isLoading ? (
-          <p className="py-4 text-center text-[13px] text-[var(--sw-text-dim)]">Loading…</p>
-        ) : invoices.length === 0 ? (
-          <p className="py-4 text-center text-[13px] text-[var(--sw-text-dim)]">No invoices yet.</p>
-        ) : (
-          <div className="dashboard-data-table-wrap sweem-tablecard">
-            <table className="sweem-table">
+      {isLoading ? (
+        <div className="dashboard-data-table-wrap sweem-tablecard py-6 text-center text-[13px] text-[var(--sw-text-dim)]">
+          Loading…
+        </div>
+      ) : invoices.length === 0 ? (
+        <div className="dashboard-data-table-wrap sweem-tablecard py-6 text-center text-[13px] text-[var(--sw-text-dim)]">
+          No invoices yet.
+        </div>
+      ) : (
+        <div className="dashboard-data-table-wrap sweem-tablecard">
+          <table className="sweem-table">
               <thead>
                 <tr>
                   <th>Description</th>
@@ -176,9 +179,8 @@ export function InvoicesSection() {
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </SweemCard>
+        </div>
+      )}
 
       <Modal
         open={formOpen}

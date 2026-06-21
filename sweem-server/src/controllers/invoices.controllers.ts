@@ -5,6 +5,8 @@ import { createDb } from '../db/client'
 import { invoices, employees } from '../db/schema'
 import type { AuthEnv, EmployeeEnv, AppEnv } from '../types'
 import { validateAttachment, attachmentKey } from '../lib/attachment'
+import { createSuiClient } from '../lib/sui'
+import { verifyInvoicePayment } from '../lib/payment'
 
 export async function listOrgInvoices(c: Context<AuthEnv>) {
   const db = createDb(c.env.DB.connectionString)
@@ -38,8 +40,45 @@ export async function updateInvoice(c: Context<AuthEnv>) {
     .set({
       status: body.status,
       note: body.note ?? existing.note,
-      paidAt: body.status === 'PAID' ? new Date() : existing.paidAt,
     })
+    .where(eq(invoices.id, invoiceId))
+    .returning()
+
+  return c.json(updated)
+}
+
+// Mark an invoice PAID by VERIFYING an on-chain payment (no message signature):
+// the org signs the actual coin-transfer tx, then submits its digest here. We
+// confirm the tx succeeded and credited the employee the invoice amount.
+export async function payInvoice(c: Context<AppEnv>) {
+  const db = createDb(c.env.DB.connectionString)
+  const orgWallet = c.req.param('wallet')!
+  const invoiceId = c.req.param('id')!
+  const { tx_hash } = await c.req.json()
+  if (!tx_hash || typeof tx_hash !== 'string') {
+    throw new HTTPException(400, { message: 'Missing tx_hash' })
+  }
+
+  const existing = await db.query.invoices.findFirst({
+    where: and(eq(invoices.id, invoiceId), eq(invoices.orgWallet, orgWallet)),
+    with: { employee: true },
+  })
+  if (!existing) throw new HTTPException(404, { message: 'Invoice not found' })
+  if (existing.status === 'PAID') return c.json(existing)
+  if (!existing.employee) throw new HTTPException(404, { message: 'Employee not found' })
+
+  const client = createSuiClient(c.env.SUI_NETWORK)
+  const check = await verifyInvoicePayment(client, tx_hash, {
+    sender: orgWallet,
+    recipient: existing.employee.walletAddress,
+    tokenSymbol: existing.token,
+    amount: existing.amount,
+  })
+  if (!check.ok) throw new HTTPException(400, { message: check.error ?? 'Payment verification failed' })
+
+  const [updated] = await db
+    .update(invoices)
+    .set({ status: 'PAID', txHash: tx_hash, paidAt: new Date() })
     .where(eq(invoices.id, invoiceId))
     .returning()
 

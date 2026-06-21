@@ -29,6 +29,13 @@
       "when": 1782030911482,
       "tag": "0003_chemical_colossus",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782033440776,
+      "tag": "0004_wakeful_blob",
+      "breakpoints": true
     }
   ]
 }

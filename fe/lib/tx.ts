@@ -48,6 +48,15 @@ export function createPoolTx(minCoverageWeeks: number, token: TokenConfig = TOKE
   return tx
 }
 
+// Plain coin transfer — pay an invoice off the org's wallet to the employee.
+// coinWithBalance auto-selects/merges (and splits from gas for SUI).
+export function payInvoiceTx(recipient: string, amountRaw: bigint, token: TokenConfig = TOKENS.USDC): Transaction {
+  const tx = new Transaction()
+  const pay = coinWithBalance({ type: token.coinType, balance: amountRaw })
+  tx.transferObjects([pay], tx.pure.address(recipient))
+  return tx
+}
+
 // stream_pool::deposit<T>(pool, config, payment, employees, rate_amounts, rate_periods_ms, clock)
 // Funds the pool AND creates/updates each employee's stream — the "start streaming" call.
 export function depositTx(

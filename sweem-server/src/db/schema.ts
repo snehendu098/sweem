@@ -168,6 +168,7 @@ export const invoices = pgTable('invoices', {
   dueDate: timestamp('due_date', { withTimezone: true }),
   attachmentKey: text('attachment_key'),
   note: text('note'),
+  txHash: text('tx_hash'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   paidAt: timestamp('paid_at', { withTimezone: true }),
 }, (t) => [

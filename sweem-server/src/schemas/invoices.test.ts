@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createInvoiceSchema, updateInvoiceSchema } from './invoices.schema'
+import { createInvoiceSchema, updateInvoiceSchema, payInvoiceSchema } from './invoices.schema'
 
 describe('createInvoiceSchema', () => {
   const valid = {
@@ -73,8 +73,8 @@ describe('updateInvoiceSchema', () => {
     expect(updateInvoiceSchema.safeParse({ status: 'REJECTED' }).success).toBe(true)
   })
 
-  it('accepts PAID', () => {
-    expect(updateInvoiceSchema.safeParse({ status: 'PAID' }).success).toBe(true)
+  it('rejects PAID (set only via on-chain /pay verification)', () => {
+    expect(updateInvoiceSchema.safeParse({ status: 'PAID' }).success).toBe(false)
   })
 
   it('accepts REJECTED with note', () => {
@@ -100,5 +100,19 @@ describe('updateInvoiceSchema', () => {
 
   it('accepts note of exactly 500 chars', () => {
     expect(updateInvoiceSchema.safeParse({ status: 'APPROVED', note: 'x'.repeat(500) }).success).toBe(true)
+  })
+})
+
+describe('payInvoiceSchema', () => {
+  it('accepts a tx_hash', () => {
+    expect(payInvoiceSchema.safeParse({ tx_hash: '0xabc123' }).success).toBe(true)
+  })
+
+  it('rejects missing tx_hash', () => {
+    expect(payInvoiceSchema.safeParse({}).success).toBe(false)
+  })
+
+  it('rejects empty tx_hash', () => {
+    expect(payInvoiceSchema.safeParse({ tx_hash: '' }).success).toBe(false)
   })
 })

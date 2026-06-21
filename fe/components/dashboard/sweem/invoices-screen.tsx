@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { DashboardPageShell } from "@/components/dashboard/dashboard-screen";
-import { SweemCard, CardLabel } from "@/components/sweem-ui/primitives";
 import { ActionButton, Modal } from "./ui";
 import { useOrgPool } from "./use-org-pool";
 import { useSweemApi, type Invoice, type InvoiceStatus } from "@/lib/api";
-import { API_BASE } from "@/lib/sweem";
+import { API_BASE, EXPLORER_TX } from "@/lib/sweem";
+import { payInvoiceTx } from "@/lib/tx";
+import { tokenBySymbol, toRaw } from "@/lib/tokens";
 import { useQuery } from "@tanstack/react-query";
 
 const STATUS_BADGE: Record<InvoiceStatus, string> = {
@@ -35,6 +37,8 @@ export default function InvoicesScreen() {
   const { wallet, org } = useOrgPool();
   const api = useSweemApi();
   const qc = useQueryClient();
+  const client = useSuiClient();
+  const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
 
   const [activeTab, setActiveTab] = useState<InvoiceStatus | "ALL">("ALL");
   const [noteOpen, setNoteOpen] = useState(false);
@@ -79,6 +83,36 @@ export default function InvoicesScreen() {
       setBusy(false);
       setNoteOpen(false);
       setPendingAction(null);
+    }
+  }
+
+  // Pay the employee on-chain, then submit the digest — backend verifies it.
+  async function payInvoice(inv: Invoice) {
+    if (!wallet) return;
+    const token = tokenBySymbol(inv.token);
+    if (!token) {
+      toast.error(`Unsupported token: ${inv.token}`);
+      return;
+    }
+    const recipient = inv.employee?.walletAddress;
+    if (!recipient) {
+      toast.error("Employee wallet missing");
+      return;
+    }
+    setBusy(true);
+    const t = toast.loading("Sending payment…");
+    try {
+      const tx = payInvoiceTx(recipient, toRaw(token, Number(inv.amount)), token);
+      const { digest } = await signAndExecute({ transaction: tx });
+      await client.waitForTransaction({ digest, options: { showEffects: true } });
+      toast.loading("Verifying payment…", { id: t });
+      await api.payOrgInvoice(wallet, inv.id, digest);
+      await qc.invalidateQueries({ queryKey: ["invoices", wallet] });
+      toast.success("Invoice paid", { id: t });
+    } catch (e) {
+      toast.error((e as Error).message ?? "Payment failed", { id: t });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -129,14 +163,17 @@ export default function InvoicesScreen() {
         )}
       </div>
 
-      <SweemCard className="mt-4">
-        {isLoading ? (
-          <div className="sweem-gate text-[var(--sw-text-dim)]">Loading…</div>
-        ) : invoices.length === 0 ? (
-          <div className="sweem-gate">No invoices yet.</div>
-        ) : (
-          <div className="dashboard-data-table-wrap sweem-tablecard">
-            <table className="sweem-table">
+      {isLoading ? (
+        <div className="dashboard-data-table-wrap sweem-tablecard mt-4 py-6 text-center text-[13px] text-[var(--sw-text-dim)]">
+          Loading…
+        </div>
+      ) : invoices.length === 0 ? (
+        <div className="dashboard-data-table-wrap sweem-tablecard mt-4 py-6 text-center text-[13px] text-[var(--sw-text-dim)]">
+          No invoices yet.
+        </div>
+      ) : (
+        <div className="dashboard-data-table-wrap sweem-tablecard mt-4">
+          <table className="sweem-table">
               <thead>
                 <tr>
                   <th>Employee</th>
@@ -187,11 +224,25 @@ export default function InvoicesScreen() {
                           </>
                         )}
                         {inv.status === "APPROVED" && (
-                          <ActionButton variant="primary" onClick={() => handleAction(inv.id, "PAID")} disabled={busy}>
-                            Mark paid
+                          <ActionButton variant="primary" onClick={() => payInvoice(inv)} disabled={busy}>
+                            Pay
                           </ActionButton>
                         )}
-                        {(inv.status === "REJECTED" || inv.status === "PAID") && (
+                        {inv.status === "PAID" && (
+                          inv.txHash ? (
+                            <a
+                              href={EXPLORER_TX(inv.txHash)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[12px] text-[var(--sw-mint)] underline"
+                            >
+                              View tx
+                            </a>
+                          ) : (
+                            <span className="text-[12px] text-[var(--sw-text-dim)]">Paid</span>
+                          )
+                        )}
+                        {inv.status === "REJECTED" && (
                           <span className="text-[12px] text-[var(--sw-text-dim)]">{inv.note ?? "—"}</span>
                         )}
                       </div>
@@ -200,9 +251,8 @@ export default function InvoicesScreen() {
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </SweemCard>
+        </div>
+      )}
 
       <Modal
         open={noteOpen}
