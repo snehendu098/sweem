@@ -7,13 +7,13 @@ export default function DocumentationPage() {
       <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">Documentation</h1>
       <p className="mt-1 text-[13.5px] text-[var(--sw-text-muted)]">
         Accept USDC &amp; SUI payments in your own app with the{" "}
-        <span className="font-medium text-[var(--sw-text)]">@sweem/react</span> SDK, one component, no
+        <span className="font-medium text-[var(--sw-text)]">@sweem/sdk</span> SDK, one component, no
         Sui setup required.
       </p>
 
       <H2>1. Install</H2>
       <P>Add the SDK to your React or Next.js project. React 18+ is a peer dependency.</P>
-      <CodeBlock code={`npm install @sweem/react`} />
+      <CodeBlock code={`npm install @sweem/sdk`} />
 
       <H2>2. Get your API key</H2>
       <P>
@@ -29,7 +29,7 @@ NEXT_PUBLIC_SWEEM_API_KEY=pk_live_xxxxxxxxxxxxxxxx`} />
       <H2>3. Add the pay button</H2>
       <P>Drop the button in anywhere. It bundles its own wallet + query providers.</P>
       <CodeBlock
-        code={`import { SweemPayButton } from "@sweem/react";
+        code={`import { SweemPayButton } from "@sweem/sdk";
 
 export function Checkout() {
   return (
@@ -98,7 +98,7 @@ export function Checkout() {
         skip the bundled provider.
       </P>
       <CodeBlock
-        code={`import { PayModal } from "@sweem/react";
+        code={`import { PayModal } from "@sweem/sdk";
 
 <PayModal open={open} onClose={close} apiKey={KEY} amount={20} />`}
       />

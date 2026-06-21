@@ -70,7 +70,7 @@ export default function WebhooksPage() {
     }
   };
 
-  const snippet = `import { verifyWebhook } from "@sweem/react/server";
+  const snippet = `import { verifyWebhook } from "@sweem/sdk/server";
 
 export async function POST(req) {
   const event = verifyWebhook({
