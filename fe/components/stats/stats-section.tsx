@@ -10,10 +10,20 @@ function CheckIcon() {
   );
 }
 
-const stats = [
+const stats: { value: string; label: string; logos?: string[] }[] = [
   { value: "100%", label: "Onchain Settlement" },
   { value: "24/7", label: "Claimable Salary" },
-  { value: "2+", label: "Integrated Yield Protocols" },
+  {
+    value: "5+",
+    label: "Integrated Yield Protocols",
+    logos: [
+      "/protocols/lending/navi.webp",
+      "/protocols/lending/scallop.png",
+      "https://unavatar.io/suilend.fi",
+      "https://unavatar.io/ondo.finance",
+      "https://unavatar.io/alphafi.xyz",
+    ],
+  },
 ];
 
 export function StatsSection() {
@@ -40,11 +50,28 @@ export function StatsSection() {
             streamed, claimable, and earning yield while it sits idle.
           </p>
           <dl className="mt-8 grid grid-cols-3 gap-4 border-t border-border pt-8">
-            {stats.map(({ value, label }) => (
+            {stats.map(({ value, label, logos }) => (
               <div key={value} className="group">
                 <span className="block h-[3px] w-7 rounded-full bg-brand/25 transition-[width,background-color] duration-300 group-hover:w-12 group-hover:bg-brand" />
-                <dd className="mt-3 text-[clamp(28px,4vw,42px)] font-semibold leading-none tracking-[-0.02em] text-text-primary tabular-nums">
-                  {value}
+                <dd className="mt-3 flex items-center gap-3">
+                  <span className="text-[clamp(28px,4vw,42px)] font-semibold leading-none tracking-[-0.02em] text-text-primary tabular-nums">
+                    {value}
+                  </span>
+                  {logos && (
+                    <span className="flex -space-x-2.5">
+                      {logos.map((src) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={src}
+                          src={src}
+                          alt=""
+                          className={`size-8 rounded-full object-cover ring-2 ring-[#15161b] ${
+                            src.includes("ondo") ? "[filter:brightness(0)_invert(1)]" : "bg-white"
+                          }`}
+                        />
+                      ))}
+                    </span>
+                  )}
                 </dd>
                 <dt className="mt-1.5 text-[14px] text-text-secondary">{label}</dt>
               </div>

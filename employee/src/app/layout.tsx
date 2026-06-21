@@ -15,9 +15,27 @@ const poppins = Poppins({
   weight: ["300", "400", "500", "600", "700", "800"],
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://portal.sweem.app";
+const OG_DESC = "Claim your streamed salary per second and earn yield on idle pay, on Sui.";
+
 export const metadata: Metadata = {
-  title: "Sweem Portal — your salary stream on Sui",
-  description: "Claim your streamed salary per second and earn yield on idle pay — on Sui.",
+  metadataBase: new URL(SITE_URL),
+  title: "Sweem Portal | your salary stream on Sui",
+  description: OG_DESC,
+  openGraph: {
+    type: "website",
+    siteName: "Sweem Portal",
+    url: SITE_URL,
+    title: "Sweem Portal | your salary stream on Sui",
+    description: OG_DESC,
+    images: [{ url: "/sweem-thumbnail.png", width: 1920, height: 1080, alt: "Sweem" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sweem Portal | your salary stream on Sui",
+    description: OG_DESC,
+    images: ["/sweem-thumbnail.png"],
+  },
 };
 
 export default function RootLayout({

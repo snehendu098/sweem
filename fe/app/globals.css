@@ -3105,3 +3105,19 @@ button.dashboard-screen-action:disabled {
 .sw-landing :is(.to-brand, .to-\[\#1c6fd0\], .to-\[\#86bfef\]) {
   --tw-gradient-to: var(--sw-lavender) var(--tw-gradient-to-position) !important;
 }
+/* Infinite marquee (Powered-by ecosystem strip). The track renders its items
+   twice, so translateX(-50%) loops seamlessly. */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee var(--marquee-duration, 40s) linear infinite;
+  will-change: transform;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee { animation: none; }
+}

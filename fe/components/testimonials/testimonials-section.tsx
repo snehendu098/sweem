@@ -86,8 +86,10 @@ export function TestimonialsSection() {
             type="quote"
             logo={<MazeLogo />}
             quote='"Monthly payroll runs are gone. Our team gets paid by the second and can claim whenever they need it."'
-            name="Marcus Lee"
-            role="Head of Finance Operations"
+            name="hypertron_HQ"
+            role="@hypertron_HQ"
+            avatar="https://unavatar.io/twitter/hypertron_HQ"
+            href="https://x.com/hypertron_HQ"
           />
         </Reveal>
         <Reveal delay={0.1}>
@@ -95,8 +97,10 @@ export function TestimonialsSection() {
             type="quote"
             logo={<AsanaLogo />}
             quote='"Idle payroll used to just sit there. Now it earns yield until the moment an employee claims."'
-            name="Nina Roberts"
-            role="Product Lead"
+            name="KimiaProtocol"
+            role="@KimiaProtocol"
+            avatar="https://unavatar.io/twitter/KimiaProtocol"
+            href="https://x.com/KimiaProtocol"
             light
           />
         </Reveal>
@@ -109,8 +113,10 @@ export function TestimonialsSection() {
             type="quote"
             logo={<MonzoLogo />}
             quote='"We can see our exact runway in real time. Pausing or adjusting a single stream takes one click."'
-            name="Ethan Walker"
-            role="Co-Founder"
+            name="DikeProtocol"
+            role="@DikeProtocol"
+            avatar="https://unavatar.io/twitter/DikeProtocol"
+            href="https://x.com/DikeProtocol"
             light
           />
         </Reveal>
@@ -119,8 +125,10 @@ export function TestimonialsSection() {
             type="quote"
             logo={<SquareLogo />}
             quote='"Non-custodial, onchain, and instant. Sweem gave us confidence to run global payroll."'
-            name="Daniel Morgan"
-            role="Founder & CEO"
+            name="SahityaRoy07"
+            role="@SahityaRoy07"
+            avatar="https://unavatar.io/twitter/SahityaRoy07"
+            href="https://x.com/SahityaRoy07"
           />
         </Reveal>
         <Reveal delay={0.1}>

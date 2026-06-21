@@ -106,7 +106,7 @@ export function FeaturesSection() {
                   <StreamControl />
                 ) : undefined
               }
-              frameClassName={card.id === "security" ? "bg-[#0a0c10]" : undefined}
+              frameClassName={card.id === "security" ? "bg-[#131316]" : undefined}
             />
           </Reveal>
         ))}

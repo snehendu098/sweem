@@ -14,6 +14,15 @@ const EMPLOYEES = [
   { name: "Sam", color: LIME },
 ];
 
+// Yield protocols idle cash is routed into.
+const PROTOCOLS = [
+  { name: "Navi · 6.4%", logo: "/protocols/lending/navi.webp" },
+  { name: "Scallop · 5.8%", logo: "/protocols/lending/scallop.png" },
+  { name: "Suilend · 7.1%", logo: "https://unavatar.io/suilend.fi" },
+  { name: "Ondo · 5.2%", logo: "https://unavatar.io/ondo.finance" },
+  { name: "AlphaFi · 6.0%", logo: "https://unavatar.io/alphafi.xyz" },
+];
+
 const Node = forwardRef<
   HTMLDivElement,
   { className?: string; children: React.ReactNode; size?: "md" | "lg" }
@@ -53,16 +62,16 @@ function UserIcon({ color }: { color: string }) {
 export function YieldRouting() {
   const containerRef = useRef<HTMLDivElement>(null);
   const poolRef = useRef<HTMLDivElement>(null);
-  const naviRef = useRef<HTMLDivElement>(null);
-  const scallopRef = useRef<HTMLDivElement>(null);
   const empRefs = useRef(EMPLOYEES.map(() => createRef<HTMLDivElement>()));
+  const protoRefs = useRef(PROTOCOLS.map(() => createRef<HTMLDivElement>()));
 
   const mid = (EMPLOYEES.length - 1) / 2;
+  const protoMid = (PROTOCOLS.length - 1) / 2;
 
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 flex items-stretch justify-between overflow-hidden bg-[#0a0c10] px-6 md:px-12"
+      className="absolute inset-0 flex items-stretch justify-between overflow-hidden bg-[#131316] px-6 md:px-12"
     >
       {/* left — team (salary streamed to each) */}
       <div className="z-10 flex flex-col justify-center gap-6">
@@ -85,17 +94,21 @@ export function YieldRouting() {
       </div>
 
       {/* right — yield protocols (idle cash routed in) */}
-      <div className="z-10 flex flex-col justify-center gap-12">
-        <Labeled label="Navi · 6.4%">
-          <Node ref={naviRef}>
-            <img src="/protocols/lending/navi.webp" alt="Navi" className="size-9 rounded-full" />
-          </Node>
-        </Labeled>
-        <Labeled label="Scallop · 5.8%">
-          <Node ref={scallopRef}>
-            <img src="/protocols/lending/scallop.png" alt="Scallop" className="size-9 rounded-full" />
-          </Node>
-        </Labeled>
+      <div className="z-10 flex flex-col justify-center gap-4">
+        {PROTOCOLS.map((p, i) => (
+          <Labeled key={p.name} label={p.name}>
+            <Node ref={protoRefs.current[i]} className="size-10">
+              <img
+                src={p.logo}
+                alt=""
+                className={cn(
+                  "size-8 rounded-full object-cover",
+                  p.logo.includes("ondo") ? "[filter:brightness(0)_invert(1)]" : "bg-white",
+                )}
+              />
+            </Node>
+          </Labeled>
+        ))}
       </div>
 
       {/* salary streams: employees → pool (unidirectional, left → right) */}
@@ -116,30 +129,21 @@ export function YieldRouting() {
       ))}
 
       {/* idle cash routed: pool → yield protocols (left → right) */}
-      <AnimatedBeam
-        containerRef={containerRef}
-        fromRef={poolRef}
-        toRef={naviRef}
-        curvature={20}
-        duration={4}
-        delay={0.4}
-        pathColor="#ffffff"
-        pathOpacity={0.08}
-        gradientStartColor={LIME}
-        gradientStopColor={VIOLET}
-      />
-      <AnimatedBeam
-        containerRef={containerRef}
-        fromRef={poolRef}
-        toRef={scallopRef}
-        curvature={-20}
-        duration={4}
-        delay={0.9}
-        pathColor="#ffffff"
-        pathOpacity={0.08}
-        gradientStartColor={LIME}
-        gradientStopColor={VIOLET}
-      />
+      {PROTOCOLS.map((_, i) => (
+        <AnimatedBeam
+          key={i}
+          containerRef={containerRef}
+          fromRef={poolRef}
+          toRef={protoRefs.current[i]}
+          curvature={(protoMid - i) * 14}
+          duration={4}
+          delay={0.4 + i * 0.2}
+          pathColor="#ffffff"
+          pathOpacity={0.08}
+          gradientStartColor={LIME}
+          gradientStopColor={VIOLET}
+        />
+      ))}
     </div>
   );
 }

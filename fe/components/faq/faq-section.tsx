@@ -1,7 +1,6 @@
 import { Reveal } from "@/components/motion/reveal";
 import { Section } from "@/components/layout/section";
 import { SectionHeading } from "@/components/layout/section-heading";
-import { ImagePlaceholder } from "@/components/ui/image-placeholder";
 import { Button } from "@/components/ui/button";
 import {
   Accordion,
@@ -66,8 +65,12 @@ export function FaqSection() {
         {/* left */}
         <Reveal>
           <div className="flex flex-col gap-4">
-            <div className="grid h-[300px] w-full place-items-center overflow-hidden rounded-[16px] border border-border bg-surface">
-              <ImagePlaceholder iconSize="size-10" />
+            <div className="grid h-[300px] w-full place-items-center overflow-hidden">
+              <div className="relative flex size-64 items-center justify-center">
+                <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(196,245,107,0.22),transparent_70%)] blur-2xl" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/sweem.png" alt="Sweem" className="relative size-52 object-contain" />
+              </div>
             </div>
             <div className="rounded-[16px] border border-border bg-surface p-5">
               <h3 className="text-[15px] font-semibold text-text-primary">Do you have more questions?</h3>

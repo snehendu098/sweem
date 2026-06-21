@@ -39,7 +39,7 @@ function YieldTicker({ base, perSec }: { base: number; perSec: number }) {
 
 export function IdleYieldMap() {
   return (
-    <div className="absolute inset-0 bg-[#0a0c10]">
+    <div className="absolute inset-0 bg-[#131316]">
       <DottedMap
         className="absolute inset-0 h-full w-full text-white/[0.1]"
         markers={markers}
@@ -52,7 +52,7 @@ export function IdleYieldMap() {
       />
 
       {/* edge vignette */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_50%_45%,transparent_45%,#0a0c10_100%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_50%_45%,transparent_45%,#131316_100%)]" />
 
       {/* live yield earned on idle balances */}
       <div className="absolute bottom-4 left-4 z-10 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 backdrop-blur-md">

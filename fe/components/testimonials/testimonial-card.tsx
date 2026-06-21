@@ -32,6 +32,8 @@ export type TestimonialCardProps =
       name: string;
       role: string;
       light?: boolean;
+      avatar?: string;
+      href?: string;
     };
 
 export function TestimonialCard(props: TestimonialCardProps) {
@@ -58,13 +60,28 @@ export function TestimonialCard(props: TestimonialCardProps) {
         <div className="mb-4">{props.logo}</div>
         <p className="text-[14px] leading-[1.6] text-[#1a2535]">{props.quote}</p>
       </div>
-      <div className="mt-5 flex items-center gap-2.5 border-t border-[#f0f2f5] pt-4">
-        <AvatarPlaceholder />
+      <a
+        href={props.href ?? undefined}
+        target={props.href ? "_blank" : undefined}
+        rel={props.href ? "noreferrer" : undefined}
+        className={`mt-5 flex items-center gap-2.5 border-t border-[#f0f2f5] pt-4 ${props.href ? "transition-opacity hover:opacity-80" : ""}`}
+      >
+        {props.avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={props.avatar}
+            alt={props.name}
+            referrerPolicy="no-referrer"
+            className="size-9 shrink-0 rounded-full bg-[#e2e6ea] object-cover"
+          />
+        ) : (
+          <AvatarPlaceholder />
+        )}
         <div>
           <p className="text-[12px] font-semibold text-[#101828]">{props.name}</p>
           <p className="text-[11px] text-[#98a2b3]">{props.role}</p>
         </div>
-      </div>
+      </a>
     </div>
   );
 }

@@ -45,7 +45,7 @@ export function FeatureCard({
   return (
     <article className="group relative h-full overflow-hidden rounded-[22px] bg-white p-3 ring-1 ring-border shadow-[0_1px_2px_rgba(16,24,40,0.05)] transition-[box-shadow] duration-300 hover:ring-brand/20">
       {/* image frame — zooms only on hover */}
-      <div className={cn("relative w-full overflow-hidden rounded-[16px] bg-[#f1f2f4]", aspect, frameClassName)}>
+      <div className={cn("relative w-full overflow-hidden rounded-[16px] bg-[#131316]", aspect, frameClassName)}>
         {media ? (
           media
         ) : image ? (

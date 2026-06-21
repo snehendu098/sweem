@@ -1,43 +1,9 @@
-function MailIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="M3 7l9 6 9-6" strokeLinecap="round" />
-    </svg>
-  );
-}
+import { SubscribeForm } from "@/components/layout/subscribe-form";
 
-function FacebookIcon() {
+function XIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="#101828" aria-hidden>
-      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-    </svg>
-  );
-}
-
-function TwitterIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="#101828" aria-hidden>
-      <path d="M4 4l16 16M20 4L4 20" stroke="#101828" strokeWidth="2.2" strokeLinecap="round" fill="none" />
-    </svg>
-  );
-}
-
-function InstagramIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#101828" strokeWidth="1.8" aria-hidden>
-      <rect x="2" y="2" width="20" height="20" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="0.8" fill="#101828" stroke="none" />
-    </svg>
-  );
-}
-
-function LinkedInIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="#101828" aria-hidden>
-      <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z" />
-      <circle cx="4" cy="4" r="2" />
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
     </svg>
   );
 }
@@ -57,12 +23,7 @@ const links = [
   },
 ];
 
-const socials = [
-  { label: "Facebook", Icon: FacebookIcon },
-  { label: "Twitter", Icon: TwitterIcon },
-  { label: "Instagram", Icon: InstagramIcon },
-  { label: "LinkedIn", Icon: LinkedInIcon },
-];
+const socials = [{ label: "X", Icon: XIcon }];
 
 export function Footer() {
   return (
@@ -76,21 +37,7 @@ export function Footer() {
             Let&apos;s Stream Your<br />Payroll.
           </h2>
           {/* email subscribe */}
-          <div className="mt-7 flex max-w-[380px] items-center rounded-full bg-white py-1.5 pl-1.5 pr-1.5 ring-1 ring-[#e5e7eb]">
-            <span className="grid shrink-0 size-8 place-items-center rounded-full bg-[#0a0e16] text-white"><MailIcon /></span>
-            <input
-              id="footer-email"
-              type="email"
-              name="email"
-              placeholder="Enter your email"
-              aria-label="Email address for newsletter"
-              autoComplete="email"
-              className="min-w-0 flex-1 bg-transparent pl-2.5 text-[13px] text-[#667085] outline-none placeholder:text-[#b0b8c4]"
-            />
-            <button className="shrink-0 rounded-full bg-[#0a0e16] px-5 py-2.5 text-[12px] font-medium text-white">
-              Subscribe
-            </button>
-          </div>
+          <SubscribeForm />
           <p className="mt-3 text-[11px] text-[#98a2b3]">
             By subscribing you agree to with our{" "}
             <a href="#" className="underline text-[#667085]">Privacy Policy</a>
@@ -142,7 +89,7 @@ export function Footer() {
                 key={label}
                 href="#"
                 aria-label={label}
-                className="grid size-9 place-items-center rounded-[9px] bg-[#f3f4f6] ring-1 ring-[#e5e7eb] hover:bg-[#e9ebee]"
+                className="grid size-9 place-items-center rounded-[9px] text-[#101828] transition-colors hover:text-[#475467]"
               >
                 <Icon />
               </a>

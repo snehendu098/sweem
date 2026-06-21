@@ -35,7 +35,7 @@ export function ConfidenceSection() {
       />
 
       <Reveal>
-        <div className="grid h-[360px] w-full place-items-center overflow-hidden rounded-[24px] border border-border bg-surface md:h-[460px]">
+        <div className="grid h-[360px] w-full place-items-center overflow-hidden rounded-[24px] border border-border bg-white md:h-[460px]">
           <ImagePlaceholder iconSize="size-12" />
         </div>
       </Reveal>

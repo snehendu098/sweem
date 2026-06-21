@@ -23,13 +23,13 @@ export function ImpactChart() {
           </span>
           Idle cash at work
         </span>
-        <span className="rounded-full bg-accent px-2.5 py-1 text-[11px] font-medium text-brand">
-          Navi + Scallop
+        <span className="rounded-full bg-[rgba(196,245,107,0.16)] px-2.5 py-1 text-[11px] font-medium text-[#c4f56b]">
+          Across 5 protocols
         </span>
       </div>
 
       <div className="mt-4 flex items-end gap-2">
-        <span className="text-[40px] font-semibold leading-none tracking-[-0.02em] text-text-primary">6.4%</span>
+        <span className="text-[40px] font-semibold leading-none tracking-[-0.02em] text-text-primary">6.1%</span>
         <span className="mb-1 text-[13px] text-text-muted">blended APY</span>
       </div>
 
@@ -73,7 +73,7 @@ export function ImpactChart() {
       </svg>
 
       <p className="mt-4 text-[12px] leading-[1.6] text-text-secondary">
-        Unclaimed payroll compounds across Sui lending protocols — earning until the moment it&apos;s claimed.
+        Unclaimed payroll compounds across Navi, Scallop, Suilend, Ondo &amp; AlphaFi — earning until the moment it&apos;s claimed.
       </p>
     </div>
   );

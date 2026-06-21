@@ -40,12 +40,15 @@ function TileCopy({ title, desc }: { title: string; desc: string }) {
 const yields = [
   { name: "Navi", apy: "6.4%", logo: "/protocols/lending/navi.webp" },
   { name: "Scallop", apy: "5.8%", logo: "/protocols/lending/scallop.png" },
+  { name: "Suilend", apy: "7.1%", logo: "https://unavatar.io/suilend.fi" },
+  { name: "Ondo", apy: "5.2%", logo: "https://unavatar.io/ondo.finance" },
+  { name: "AlphaFi", apy: "6.0%", logo: "https://unavatar.io/alphafi.xyz" },
 ];
 
 const allocation: { label: string; pct: number; color: string; logo?: string }[] = [
-  { label: "Wallet", pct: 40, color: "#0a0e16" },
-  { label: "Navi", pct: 35, color: "#1c6fd0", logo: "/protocols/lending/navi.webp" },
-  { label: "Scallop", pct: 25, color: "#7cc0f2", logo: "/protocols/lending/scallop.png" },
+  { label: "Wallet", pct: 40, color: "#475467" },
+  { label: "Navi", pct: 35, color: "#c4f56b", logo: "/protocols/lending/navi.webp" },
+  { label: "Scallop", pct: 25, color: "#bcaef7", logo: "/protocols/lending/scallop.png" },
 ];
 
 function TrendUp() {
@@ -97,7 +100,14 @@ export function ServicesSection() {
                   className="flex items-center justify-between rounded-xl border border-border bg-white px-3 py-2.5"
                 >
                   <span className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
-                    <img src={y.logo} alt={y.name} className="size-5 rounded-full object-contain" />
+                    <img
+                      src={y.logo}
+                      alt=""
+                      className={cn(
+                        "size-5 rounded-full object-cover",
+                        y.logo.includes("ondo") ? "[filter:brightness(0)_invert(1)]" : "bg-white",
+                      )}
+                    />
                     {y.name}
                   </span>
                   <span className="flex items-center gap-1 text-[13px] font-semibold text-brand">
@@ -145,7 +155,7 @@ export function ServicesSection() {
                   <span key={a.label} className="flex items-center gap-1.5 text-[12px] text-text-secondary">
                     {a.logo ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={a.logo} alt={a.label} className="size-4 rounded-full object-contain" />
+                      <img src={a.logo} alt="" className="size-4 rounded-full object-contain" />
                     ) : (
                       <span className="size-2 rounded-full" style={{ background: a.color }} />
                     )}

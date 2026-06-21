@@ -99,7 +99,7 @@ export function StreamControl() {
   const live = statuses.filter((s) => s === "active").length;
 
   return (
-    <div className="absolute inset-0 flex flex-col justify-center gap-4 bg-[#0a0c10] p-5">
+    <div className="absolute inset-0 flex flex-col justify-center gap-4 bg-[#131316] p-5">
       <div className="flex items-center justify-between text-[11px] font-medium text-white/55">
         <span>Salary streams</span>
         <span className="text-[#c4f56b]">{live} active</span>
