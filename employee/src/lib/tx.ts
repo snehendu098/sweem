@@ -8,6 +8,7 @@ import type { SuiJsonRpcClient, SuiObjectChange } from '@mysten/sui/jsonRpc'
 import {
   CORE,
   ADAPTERS,
+  ADAPTERS_STSUI,
   PROTOCOL_CONFIG,
   PROTOCOL_REGISTRY,
   CLOCK,
@@ -18,8 +19,19 @@ import {
   NAVI_PRICE_ORACLE,
   SCALLOP_VERSION,
   SCALLOP_MARKET,
+  SUILEND_LENDING_MARKET,
+  STSUI_LST_INFO,
+  STSUI_SYSTEM_STATE,
+  USDY_TYPE,
 } from './sweem'
 import { TOKENS, SUPPORTED_TOKENS, type TokenConfig } from './tokens'
+import { appendCetusSwap } from './cetus'
+
+// Default Cetus slippage (bps) for USDY swaps when a caller doesn't specify one.
+export const DEFAULT_USDY_SLIPPAGE_BPS = 100 // 1%
+
+// All five protocols are valid in a vault (L/Y/S). stSUI is SUI-only, USDY is USDC-only.
+export type YieldProtocol = 'navi' | 'scallop' | 'suilend' | 'usdy' | 'stsui'
 
 // Effectively-unbounded max draw for cover_claim_* — the move call self-caps to
 // the caller's own shortfall, so a huge ceiling just means "drain as needed".
@@ -383,6 +395,8 @@ export async function findMyVault(
 export interface CoverOpts {
   coverNavi: boolean
   coverScallop: boolean
+  coverSuilend?: boolean
+  // No USDY cover: a USDY position can't auto-convert to the base token on-chain.
 }
 
 // Append cover_claim_from_* calls to a tx. Each is a no-op on-chain unless the
@@ -416,6 +430,20 @@ function appendCovers(tx: Transaction, poolId: string, opts: CoverOpts, token: T
         tx.object(poolId),
         tx.object(SCALLOP_VERSION),
         tx.object(SCALLOP_MARKET),
+        tx.object(PROTOCOL_CONFIG),
+        tx.object(PROTOCOL_REGISTRY),
+        tx.object(CLOCK),
+        tx.pure.u64(COVER_MAX),
+      ],
+    })
+  }
+  if (opts.coverSuilend) {
+    tx.moveCall({
+      target: `${ADAPTERS}::suilend::cover_claim_from_suilend`,
+      typeArguments: [token.coinType],
+      arguments: [
+        tx.object(poolId),
+        tx.object(SUILEND_LENDING_MARKET),
         tx.object(PROTOCOL_CONFIG),
         tx.object(PROTOCOL_REGISTRY),
         tx.object(CLOCK),
@@ -465,21 +493,90 @@ export function claimToVaultTx(
 // remainder — cash + accrual dust — back to the employee's wallet. Percentages are
 // resolved to base-unit amounts off-chain by the caller; the wallet leg is implicit
 // (whatever's left after the bucket deposit), so it absorbs all rounding.
+// Append a single vault invest leg (`amountRaw` of an already-funded bucket) for any
+// protocol onto `tx`. Async only because USDY swaps through Cetus.
+async function appendVaultInvest(
+  tx: Transaction,
+  vault: ReturnType<Transaction['object']>,
+  protocol: YieldProtocol,
+  token: TokenConfig,
+  amountRaw: bigint,
+  opts: { needsNaviCap: boolean; slippageBps: number },
+): Promise<void> {
+  const bucket = tx.pure.string(token.bucketName)
+  if (protocol === 'navi') {
+    if (opts.needsNaviCap) {
+      const cap = tx.moveCall({ target: `${NAVI_LENDING_CORE_PKG}::lending::create_account` })
+      tx.moveCall({ target: `${ADAPTERS}::navi::store_vault_account_cap`, arguments: [vault, cap] }) // NON-generic
+    }
+    tx.moveCall({
+      target: `${ADAPTERS}::navi::vault_invest_navi`,
+      typeArguments: [token.coinType],
+      arguments: [
+        vault, bucket,
+        tx.object(NAVI_STORAGE),
+        tx.object(token.navi.poolId),
+        tx.object(NAVI_INCENTIVE_V2),
+        tx.object(NAVI_INCENTIVE_V3),
+        tx.object(PROTOCOL_REGISTRY),
+        tx.object(CLOCK),
+        tx.pure.u8(token.navi.assetId),
+        tx.pure.u64(amountRaw),
+      ],
+    })
+  } else if (protocol === 'scallop') {
+    tx.moveCall({
+      target: `${ADAPTERS}::scallop::vault_invest_scallop`,
+      typeArguments: [token.coinType],
+      arguments: [vault, bucket, tx.object(SCALLOP_VERSION), tx.object(SCALLOP_MARKET), tx.object(PROTOCOL_REGISTRY), tx.object(CLOCK), tx.pure.u64(amountRaw)],
+    })
+  } else if (protocol === 'suilend') {
+    tx.moveCall({
+      target: `${ADAPTERS}::suilend::vault_invest_suilend`,
+      typeArguments: [token.coinType],
+      arguments: [vault, bucket, tx.object(SUILEND_LENDING_MARKET), tx.object(PROTOCOL_REGISTRY), tx.object(CLOCK), tx.pure.u64(amountRaw)],
+    })
+  } else if (protocol === 'stsui') {
+    tx.moveCall({
+      target: `${ADAPTERS_STSUI}::stsui::vault_invest_stsui`, // NO typeArguments, SUI bucket
+      arguments: [vault, tx.pure.string('SUI'), tx.object(STSUI_LST_INFO), tx.object(STSUI_SYSTEM_STATE), tx.object(PROTOCOL_REGISTRY), tx.pure.u64(amountRaw)],
+    })
+  } else {
+    const [usdcCoin, receipt] = tx.moveCall({
+      target: `${ADAPTERS}::usdy::vault_invest_usdy_extract`,
+      typeArguments: [token.coinType],
+      arguments: [vault, bucket, tx.object(PROTOCOL_REGISTRY), tx.pure.u64(amountRaw)],
+    })
+    const usdyCoin = await appendCetusSwap(tx, { inputCoin: usdcCoin, fromType: token.coinType, toType: USDY_TYPE, amountIn: amountRaw, slippageBps: opts.slippageBps })
+    tx.moveCall({
+      target: `${ADAPTERS}::usdy::vault_invest_usdy_deposit`,
+      typeArguments: [token.coinType, USDY_TYPE],
+      arguments: [vault, bucket, tx.object(PROTOCOL_REGISTRY), usdyCoin, receipt],
+    })
+  }
+}
+
 export interface AllocPlan {
   poolId: string
   vaultId: string | null // required when bucketDepositRaw > 0
   wallet: string // recipient of the cash remainder
   token: TokenConfig
   covers: CoverOpts
-  bucketDepositRaw: bigint // total routed into the vault bucket (idle + navi + scallop legs)
+  bucketDepositRaw: bigint // total routed into the vault bucket (idle + invested legs)
   naviInvestRaw: bigint // portion of the bucket pushed into Navi (0 = leave idle)
-  scallopInvestRaw: bigint // portion of the bucket pushed into Scallop (0 = leave idle)
+  scallopInvestRaw: bigint // portion pushed into Scallop
+  suilendInvestRaw?: bigint // portion pushed into Suilend
+  usdyInvestRaw?: bigint // portion pushed into USDY (USDC token only; routes via Cetus)
+  stsuiInvestRaw?: bigint // portion staked into stSUI (SUI token only)
   needsBucket: boolean // init the token bucket first (vault has none yet)
   needsNaviCap: boolean // mint + store a Navi AccountCap first
+  slippageBps?: number // Cetus slippage for the USDY leg
 }
 
-export function claimAndAllocateTx(plan: AllocPlan): Transaction {
+// Async because the USDY leg swaps via Cetus; resolves immediately when no USDY leg.
+export async function claimAndAllocateTx(plan: AllocPlan): Promise<Transaction> {
   const { token } = plan
+  const slippageBps = plan.slippageBps ?? DEFAULT_USDY_SLIPPAGE_BPS
   const tx = new Transaction()
   appendCovers(tx, plan.poolId, plan.covers, token)
   const [coin] = tx.moveCall({
@@ -504,45 +601,15 @@ export function claimAndAllocateTx(plan: AllocPlan): Transaction {
       typeArguments: [token.coinType],
       arguments: [vault, tx.pure.string(token.bucketName), vaultCoin],
     })
-    if (plan.naviInvestRaw > 0n) {
-      if (plan.needsNaviCap) {
-        const cap = tx.moveCall({ target: `${NAVI_LENDING_CORE_PKG}::lending::create_account` })
-        tx.moveCall({
-          target: `${ADAPTERS}::navi::store_vault_account_cap`, // NON-generic
-          arguments: [vault, cap],
-        })
-      }
-      tx.moveCall({
-        target: `${ADAPTERS}::navi::vault_invest_navi`,
-        typeArguments: [token.coinType],
-        arguments: [
-          vault,
-          tx.pure.string(token.bucketName),
-          tx.object(NAVI_STORAGE),
-          tx.object(token.navi.poolId),
-          tx.object(NAVI_INCENTIVE_V2),
-          tx.object(NAVI_INCENTIVE_V3),
-          tx.object(PROTOCOL_REGISTRY),
-          tx.object(CLOCK),
-          tx.pure.u8(token.navi.assetId),
-          tx.pure.u64(plan.naviInvestRaw),
-        ],
-      })
-    }
-    if (plan.scallopInvestRaw > 0n) {
-      tx.moveCall({
-        target: `${ADAPTERS}::scallop::vault_invest_scallop`,
-        typeArguments: [token.coinType],
-        arguments: [
-          vault,
-          tx.pure.string(token.bucketName),
-          tx.object(SCALLOP_VERSION),
-          tx.object(SCALLOP_MARKET),
-          tx.object(PROTOCOL_REGISTRY),
-          tx.object(CLOCK),
-          tx.pure.u64(plan.scallopInvestRaw),
-        ],
-      })
+    const legs: [YieldProtocol, bigint][] = [
+      ['navi', plan.naviInvestRaw],
+      ['scallop', plan.scallopInvestRaw],
+      ['suilend', plan.suilendInvestRaw ?? 0n],
+      ['usdy', plan.usdyInvestRaw ?? 0n],
+      ['stsui', plan.stsuiInvestRaw ?? 0n],
+    ]
+    for (const [protocol, amt] of legs) {
+      if (amt > 0n) await appendVaultInvest(tx, vault, protocol, token, amt, { needsNaviCap: plan.needsNaviCap, slippageBps })
     }
   }
 
@@ -633,6 +700,188 @@ export function vaultInvestScallopTx(vaultId: string, amountRaw: bigint, token: 
   return tx
 }
 
+// Invest idle bucket funds into Suilend (vault).
+export function vaultInvestSuilendTx(vaultId: string, amountRaw: bigint, token: TokenConfig = TOKENS.USDC): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${ADAPTERS}::suilend::vault_invest_suilend`,
+    typeArguments: [token.coinType],
+    arguments: [
+      tx.object(vaultId),
+      tx.pure.string(token.bucketName),
+      tx.object(SUILEND_LENDING_MARKET),
+      tx.object(PROTOCOL_REGISTRY),
+      tx.object(CLOCK),
+      tx.pure.u64(amountRaw),
+    ],
+  })
+  return tx
+}
+
+// suilend::vault_withdraw_suilend<T> — full position (no amount), Suilend → idle.
+export function vaultWithdrawSuilendTx(vaultId: string, token: TokenConfig = TOKENS.USDC): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${ADAPTERS}::suilend::vault_withdraw_suilend`,
+    typeArguments: [token.coinType],
+    arguments: [
+      tx.object(vaultId),
+      tx.pure.string(token.bucketName),
+      tx.object(SUILEND_LENDING_MARKET),
+      tx.object(PROTOCOL_CONFIG),
+      tx.object(PROTOCOL_REGISTRY),
+      tx.object(CLOCK),
+    ],
+  })
+  return tx
+}
+
+// stSUI vault invest — SUI only, non-generic, separate package. Stakes SUI → stSUI.
+export function vaultInvestStsuiTx(vaultId: string, amountRaw: bigint): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${ADAPTERS_STSUI}::stsui::vault_invest_stsui`, // NO typeArguments
+    arguments: [
+      tx.object(vaultId),
+      tx.pure.string('SUI'),
+      tx.object(STSUI_LST_INFO),
+      tx.object(STSUI_SYSTEM_STATE),
+      tx.object(PROTOCOL_REGISTRY),
+      tx.pure.u64(amountRaw),
+    ],
+  })
+  return tx
+}
+
+// stSUI vault withdraw — full position, unstakes stSUI → SUI back into idle.
+export function vaultWithdrawStsuiTx(vaultId: string): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${ADAPTERS_STSUI}::stsui::vault_withdraw_stsui`, // NO typeArguments
+    arguments: [
+      tx.object(vaultId),
+      tx.pure.string('SUI'),
+      tx.object(STSUI_LST_INFO),
+      tx.object(STSUI_SYSTEM_STATE),
+      tx.object(PROTOCOL_CONFIG),
+      tx.object(PROTOCOL_REGISTRY),
+    ],
+  })
+  return tx
+}
+
+// USDY vault invest — async 2-step extract→Cetus swap→deposit (idle → USDY).
+export async function vaultInvestUsdyTx(
+  vaultId: string,
+  amountRaw: bigint,
+  token: TokenConfig = TOKENS.USDC,
+  slippageBps: number = DEFAULT_USDY_SLIPPAGE_BPS,
+): Promise<Transaction> {
+  const tx = new Transaction()
+  const [usdcCoin, receipt] = tx.moveCall({
+    target: `${ADAPTERS}::usdy::vault_invest_usdy_extract`,
+    typeArguments: [token.coinType],
+    arguments: [tx.object(vaultId), tx.pure.string(token.bucketName), tx.object(PROTOCOL_REGISTRY), tx.pure.u64(amountRaw)],
+  })
+  const usdyCoin = await appendCetusSwap(tx, { inputCoin: usdcCoin, fromType: token.coinType, toType: USDY_TYPE, amountIn: amountRaw, slippageBps })
+  tx.moveCall({
+    target: `${ADAPTERS}::usdy::vault_invest_usdy_deposit`,
+    typeArguments: [token.coinType, USDY_TYPE],
+    arguments: [tx.object(vaultId), tx.pure.string(token.bucketName), tx.object(PROTOCOL_REGISTRY), usdyCoin, receipt],
+  })
+  return tx
+}
+
+// USDY vault withdraw — async; amountYRaw is the USDY (Y) amount to unwind → idle.
+export async function vaultWithdrawUsdyTx(
+  vaultId: string,
+  amountYRaw: bigint,
+  token: TokenConfig = TOKENS.USDC,
+  slippageBps: number = DEFAULT_USDY_SLIPPAGE_BPS,
+): Promise<Transaction> {
+  const tx = new Transaction()
+  const [usdyCoin, receipt] = tx.moveCall({
+    target: `${ADAPTERS}::usdy::vault_withdraw_usdy_extract`,
+    typeArguments: [token.coinType, USDY_TYPE],
+    arguments: [tx.object(vaultId), tx.pure.string(token.bucketName), tx.object(PROTOCOL_REGISTRY), tx.pure.u64(amountYRaw)],
+  })
+  const usdcCoin = await appendCetusSwap(tx, { inputCoin: usdyCoin, fromType: USDY_TYPE, toType: token.coinType, amountIn: amountYRaw, slippageBps })
+  tx.moveCall({
+    target: `${ADAPTERS}::usdy::vault_withdraw_usdy_deposit`,
+    typeArguments: [token.coinType],
+    arguments: [
+      tx.object(vaultId),
+      tx.pure.string(token.bucketName),
+      tx.object(PROTOCOL_CONFIG),
+      tx.object(PROTOCOL_REGISTRY),
+      usdcCoin,
+      receipt,
+    ],
+  })
+  return tx
+}
+
+// navi::vault_withdraw_navi<T> — Navi → idle bucket balance.
+export function vaultWithdrawNaviTx(vaultId: string, amountRaw: bigint, token: TokenConfig = TOKENS.USDC): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${ADAPTERS}::navi::vault_withdraw_navi`,
+    typeArguments: [token.coinType],
+    arguments: [
+      tx.object(vaultId),
+      tx.pure.string(token.bucketName),
+      tx.object(NAVI_STORAGE),
+      tx.object(token.navi.poolId),
+      tx.object(NAVI_INCENTIVE_V2),
+      tx.object(NAVI_INCENTIVE_V3),
+      tx.object(NAVI_PRICE_ORACLE),
+      tx.object(PROTOCOL_CONFIG),
+      tx.object(CLOCK),
+      tx.object(PROTOCOL_REGISTRY),
+      tx.pure.u8(token.navi.assetId),
+      tx.pure.u64(amountRaw),
+    ],
+  })
+  return tx
+}
+
+// scallop::vault_withdraw_scallop<T> — Scallop → idle bucket balance.
+export function vaultWithdrawScallopTx(vaultId: string, amountRaw: bigint, token: TokenConfig = TOKENS.USDC): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${ADAPTERS}::scallop::vault_withdraw_scallop`,
+    typeArguments: [token.coinType],
+    arguments: [
+      tx.object(vaultId),
+      tx.pure.string(token.bucketName),
+      tx.object(SCALLOP_VERSION),
+      tx.object(SCALLOP_MARKET),
+      tx.object(PROTOCOL_CONFIG),
+      tx.object(PROTOCOL_REGISTRY),
+      tx.object(CLOCK),
+      tx.pure.u64(amountRaw),
+    ],
+  })
+  return tx
+}
+
+// employee_vault::withdraw_from_bucket<T> — move idle bucket funds to the caller's wallet.
+export function withdrawToWalletTx(
+  vaultId: string,
+  amountRaw: bigint,
+  recipient: string,
+  token: TokenConfig = TOKENS.USDC,
+): Transaction {
+  const tx = new Transaction()
+  const [coin] = tx.moveCall({
+    target: `${CORE}::employee_vault::withdraw_from_bucket`,
+    typeArguments: [token.coinType],
+    arguments: [tx.object(vaultId), tx.pure.string(token.bucketName), tx.pure.u64(amountRaw)],
+  })
+  tx.transferObjects([coin], tx.pure.address(recipient))
+  return tx
+}
+
 // Locate this token's TokenBucket dynamic-object-field object id under a vault.
 async function findVaultBucketId(
   client: SuiJsonRpcClient,
@@ -669,18 +918,22 @@ export async function vaultHasNaviCap(
 export interface VaultInvestments {
   naviRaw: bigint
   scallopRaw: bigint
+  suilendRaw: bigint
+  usdyRaw: bigint // base-token (T) principal tracked in the USDY position
+  usdyHeldYRaw: bigint // the actual Coin<Y> (USDY) balance held — pass to withdraw
+  stsuiRaw: bigint // SUI principal staked into stSUI (SUI bucket only)
   idleRaw: bigint // liquid tokens sitting in the bucket, not yet invested
 }
 
 // Best-effort read of a vault's bucket for this token: invested principal per
-// protocol (NaviVaultPositionKey / ScallopVaultPositionKey → deposited_value) plus
+// protocol (Navi/Scallop/Suilend/Usdy/StsuiVaultPositionKey → deposited_value) plus
 // the bucket's liquid balance. Returns zeros for anything missing.
 export async function readVaultInvestments(
   client: SuiJsonRpcClient,
   vaultId: string,
   token: TokenConfig = TOKENS.USDC,
 ): Promise<VaultInvestments> {
-  const out: VaultInvestments = { naviRaw: 0n, scallopRaw: 0n, idleRaw: 0n }
+  const out: VaultInvestments = { naviRaw: 0n, scallopRaw: 0n, suilendRaw: 0n, usdyRaw: 0n, usdyHeldYRaw: 0n, stsuiRaw: 0n, idleRaw: 0n }
   const bucketId = await findVaultBucketId(client, vaultId, token)
   if (!bucketId) return out
 
@@ -699,17 +952,33 @@ export async function readVaultInvestments(
   do {
     const page = await client.getDynamicFields({ parentId: bucketId, cursor: cursor ?? null })
     for (const field of page.data) {
-      const isNavi = field.name.type.includes('NaviVaultPositionKey')
-      const isScallop = field.name.type.includes('ScallopVaultPositionKey')
-      if (!isNavi && !isScallop) continue
+      const t = field.name.type
+      const isNavi = t.includes('NaviVaultPositionKey')
+      const isScallop = t.includes('ScallopVaultPositionKey')
+      const isSuilend = t.includes('SuilendVaultPositionKey')
+      const isUsdy = t.includes('UsdyVaultPositionKey')
+      const isStsui = t.includes('StsuiVaultPositionKey')
+      // Custodied USDY Coin<Y> under UsdyVaultKey (DOF); its balance is `total_y`.
+      const isUsdyHeld = t.includes('UsdyVaultKey')
+      if (!isNavi && !isScallop && !isSuilend && !isUsdy && !isStsui && !isUsdyHeld) continue
       try {
+        if (isUsdyHeld) {
+          const coin = await client.getDynamicFieldObject({ parentId: bucketId, name: field.name })
+          const cc = coin.data?.content
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          out.usdyHeldYRaw = cc && cc.dataType === 'moveObject' ? toBig((cc.fields as any)?.balance) : 0n
+          continue
+        }
         const o = await client.getObject({ id: field.objectId, options: { showContent: true } })
         const c = o.data?.content
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const value: any = c && c.dataType === 'moveObject' ? (c.fields as any).value : undefined
         const raw = toBig(value?.fields?.deposited_value ?? value?.deposited_value)
         if (isNavi) out.naviRaw = raw
-        else out.scallopRaw = raw
+        else if (isScallop) out.scallopRaw = raw
+        else if (isSuilend) out.suilendRaw = raw
+        else if (isUsdy) out.usdyRaw = raw
+        else out.stsuiRaw = raw
       } catch {
         /* skip on read failure */
       }

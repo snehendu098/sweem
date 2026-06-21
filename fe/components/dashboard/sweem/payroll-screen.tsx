@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -32,17 +32,21 @@ import { cn } from "@/lib/utils";
 import { MONTH_MS, weeklyCommitRaw } from "@/lib/sweem";
 import { TOKENS, toRaw, fromRaw, type TokenConfig, type TokenSymbol } from "@/lib/tokens";
 import type { Employee } from "@/lib/api";
+import { protocolsForScope, minInvestFor, type ProtocolKey } from "@/lib/protocols";
 import {
   createPoolTx,
   depositTx,
   findCreatedPoolId,
   investNaviTx,
   investScallopTx,
+  investSuilendTx,
+  investUsdyTx,
   pauseStreamTx,
   poolHasNaviCap,
   rebalanceTx,
   resumeStreamTx,
   topupTx,
+  DEFAULT_USDY_SLIPPAGE_BPS,
   type EmployeeStream,
   type PoolBucket,
 } from "@/lib/tx";
@@ -50,13 +54,15 @@ import { DashboardPageShell } from "@/components/dashboard/dashboard-screen";
 import { useOrgPool } from "./use-org-pool";
 import { TokenTabs } from "./token-tabs";
 import { LiveTicker } from "./live-ticker";
-import { ActionButton, Modal, PercentChips, ProtocolRow, ConnectGate } from "./ui";
+import { ActionButton, Modal, PercentChips, ProtocolRow, SlippageInput, ConnectGate } from "./ui";
 import { monthlyRate, shortAddr } from "./helpers";
 
 const ALLOC = [
   { key: "idle", label: "Idle (liquid)", color: "var(--sw-text)" },
   { key: "navi", label: "Navi", color: "var(--sw-mint)" },
   { key: "scallop", label: "Scallop", color: "var(--sw-lavender)" },
+  { key: "suilend", label: "Suilend", color: "#6bb8f5" },
+  { key: "usdy", label: "Ondo USDY", color: "#f5c46b" },
 ] as const;
 
 function ChartTooltip({
@@ -91,6 +97,8 @@ function PoolBalanceCard({
   idle,
   navi,
   scallop,
+  suilend,
+  usdy,
   token,
   onTopup,
   onRebalance,
@@ -99,12 +107,14 @@ function PoolBalanceCard({
   idle: number;
   navi: number;
   scallop: number;
+  suilend: number;
+  usdy: number;
   token: TokenConfig;
   onTopup?: () => void;
   onRebalance?: () => void;
 }) {
   const mounted = useMounted();
-  const values: Record<string, number> = { idle, navi, scallop };
+  const values: Record<string, number> = { idle, navi, scallop, suilend, usdy };
   const slices = ALLOC.map((s) => ({ label: s.label, value: values[s.key], color: s.color })).filter(
     (s) => s.value > 0,
   );
@@ -152,7 +162,7 @@ function PoolBalanceCard({
         {ALLOC.map((s) => (
           <li key={s.key} className="flex items-center justify-between">
             <span className="flex items-center gap-2.5">
-              <ProtocolLogo name={s.label} size={18} accent={s.color} />
+              <ProtocolLogo name={s.key} size={18} accent={s.color} />
               <span className="text-[13px] text-[var(--sw-text-muted)]">{s.label}</span>
             </span>
             <span className="text-[13px] font-semibold tabular-nums text-[var(--sw-text)]">
@@ -184,7 +194,13 @@ const BUCKETS: { key: PoolBucket; label: string }[] = [
   { key: "idle", label: "Idle" },
   { key: "navi", label: "Navi" },
   { key: "scallop", label: "Scallop" },
+  { key: "suilend", label: "Suilend" },
+  { key: "usdy", label: "Ondo USDY" },
 ];
+
+const PROTOCOL_LABEL: Partial<Record<PoolBucket, string>> = Object.fromEntries(
+  BUCKETS.map((b) => [b.key, b.label]),
+);
 
 // Segmented picker over the pool's three buckets, showing each one's balance. The
 // `exclude` bucket (the other side of a rebalance) is disabled.
@@ -237,19 +253,25 @@ function InvestedCard({
   idle,
   navi,
   scallop,
+  suilend,
+  usdy,
   token,
 }: {
   total: number;
   idle: number;
   navi: number;
   scallop: number;
+  suilend: number;
+  usdy: number;
   token: TokenConfig;
 }) {
-  const invested = navi + scallop;
+  const invested = navi + scallop + suilend + usdy;
   const sum = total > 0 ? total : 1;
   const rows = [
-    { label: "Navi", value: navi, color: "var(--sw-mint)" },
-    { label: "Scallop", value: scallop, color: "var(--sw-lavender)" },
+    { key: "navi", label: "Navi", value: navi, color: "var(--sw-mint)" },
+    { key: "scallop", label: "Scallop", value: scallop, color: "var(--sw-lavender)" },
+    { key: "suilend", label: "Suilend", value: suilend, color: "#6bb8f5" },
+    { key: "usdy", label: "Ondo USDY", value: usdy, color: "#f5c46b" },
   ];
 
   return (
@@ -269,10 +291,10 @@ function InvestedCard({
         {rows.map((r) => {
           const pct = (r.value / sum) * 100;
           return (
-            <div key={r.label}>
+            <div key={r.key}>
               <div className="flex items-center justify-between text-[13px]">
                 <span className="flex items-center gap-2.5">
-                  <ProtocolLogo name={r.label} size={18} accent={r.color} />
+                  <ProtocolLogo name={r.key} size={18} accent={r.color} />
                   <span className="text-[var(--sw-text-muted)]">{r.label}</span>
                 </span>
                 <span className="font-semibold tabular-nums text-[var(--sw-text)]">
@@ -396,19 +418,25 @@ export function PayrollScreen() {
   const st = poolStateByToken[symbol];
   const totalMonthly = totalMonthlyByToken[symbol];
   const onChainPoolId = poolIdByToken[symbol];
-  const { funded, idle, navi, scallop, totalInPool, floor } = st;
+  const { funded, idle, navi, scallop, suilend, usdy, totalInPool, floor } = st;
+
+  // Pool-scope protocols for this token (navi, scallop, suilend, usdy — stsui excluded).
+  const protocols = useMemo(() => protocolsForScope("pool", token), [token]);
 
   const [busy, setBusy] = useState(false);
 
-  // invest dialog state
+  // invest dialog state — descriptor-driven per-protocol checkbox + amount.
   const [investOpen, setInvestOpen] = useState(false);
   const [poolId, setPoolId] = useState("");
   const [investable, setInvestable] = useState(0);
   const [coverageFloor, setCoverageFloor] = useState(0);
-  const [naviYes, setNaviYes] = useState(true);
-  const [scallopYes, setScallopYes] = useState(true);
-  const [naviAmt, setNaviAmt] = useState("");
-  const [scallopAmt, setScallopAmt] = useState("");
+  const [checkedByKey, setCheckedByKey] = useState<Record<ProtocolKey, boolean>>(
+    {} as Record<ProtocolKey, boolean>,
+  );
+  const [amountByKey, setAmountByKey] = useState<Record<ProtocolKey, string>>(
+    {} as Record<ProtocolKey, string>,
+  );
+  const [slippageBps, setSlippageBps] = useState(DEFAULT_USDY_SLIPPAGE_BPS);
 
   // top-up dialog
   const [topupOpen, setTopupOpen] = useState(false);
@@ -420,20 +448,40 @@ export function PayrollScreen() {
   const [rbTo, setRbTo] = useState<PoolBucket>("navi");
   const [rbAmt, setRbAmt] = useState("");
 
-  const balances: Record<PoolBucket, number> = { idle, navi, scallop };
+  const balances: Record<PoolBucket, number> = { idle, navi, scallop, suilend, usdy };
   const rbAmtNum = Number(rbAmt) || 0;
+  const rbUsesUsdy = rbFrom === "usdy" || rbTo === "usdy";
   const rebalanceError = (() => {
     if (rbFrom === rbTo) return "Choose two different buckets";
     if (rbAmtNum <= 0) return null;
     if (rbAmtNum > balances[rbFrom]) return `Amount exceeds ${rbFrom} balance`;
-    if (rbTo === "navi" && rbAmtNum < token.navi.minInvest)
-      return `Navi requires at least ${token.navi.minInvest} ${symbol}`;
+    if (rbTo !== "idle") {
+      const min = minInvestFor(rbTo, token);
+      if (rbAmtNum < min)
+        return `${PROTOCOL_LABEL[rbTo] ?? rbTo} requires at least ${min} ${symbol}`;
+    }
     return null;
   })();
 
   const quotes = api.yieldsByToken.data?.[symbol]?.quotes ?? [];
-  const naviApy = quotes.find((q) => q.protocol === "NAVI")?.apy;
-  const scallopApy = quotes.find((q) => q.protocol === "SCALLOP")?.apy;
+  const apyOf = (key: ProtocolKey) => {
+    const enumKey = protocols.find((p) => p.key === key)?.apyEnum;
+    return quotes.find((q) => q.protocol === enumKey)?.apy;
+  };
+
+  // Reset the descriptor-driven invest state for the current protocol set: all
+  // checked, empty amounts. Called whenever an invest dialog is opened.
+  function resetInvestForm() {
+    const checked = {} as Record<ProtocolKey, boolean>;
+    const amounts = {} as Record<ProtocolKey, string>;
+    for (const p of protocols) {
+      checked[p.key] = true;
+      amounts[p.key] = "";
+    }
+    setCheckedByKey(checked);
+    setAmountByKey(amounts);
+    setSlippageBps(DEFAULT_USDY_SLIPPAGE_BPS);
+  }
 
   // ── fund & start ────────────────────────────────────────────────────────────
   async function handleFundAndStart() {
@@ -491,8 +539,7 @@ export function PayrollScreen() {
       setPoolId(createdPoolId);
       setInvestable(Math.max(0, totalMonthly - fromRaw(token, floorRaw)));
       setCoverageFloor(fromRaw(token, floorRaw));
-      setNaviAmt("");
-      setScallopAmt("");
+      resetInvestForm();
       await api.yieldsByToken.refetch();
       toast.success("Pool funded, streams live", { id: t });
       setInvestOpen(true);
@@ -508,24 +555,24 @@ export function PayrollScreen() {
     setPoolId(onChainPoolId);
     setInvestable(Math.max(0, idle - floor));
     setCoverageFloor(floor);
-    setNaviAmt("");
-    setScallopAmt("");
+    resetInvestForm();
     setInvestOpen(true);
   }
 
-  const naviNum = Number(naviAmt) || 0;
-  const scallopNum = Number(scallopAmt) || 0;
+  const amountNumOf = (key: ProtocolKey) => Number(amountByKey[key]) || 0;
+  const usdyChecked = !!checkedByKey.usdy;
   const validationError = (() => {
-    if (naviYes) {
-      if (naviNum > investable) return "Navi amount exceeds investable balance";
-      if (naviNum < token.navi.minInvest)
-        return `Navi requires at least ${token.navi.minInvest} ${symbol}`;
+    const active = protocols.filter((p) => checkedByKey[p.key]);
+    if (active.length === 0) return "Select at least one protocol";
+    let combined = 0;
+    for (const p of active) {
+      const amt = amountNumOf(p.key);
+      combined += amt;
+      if (amt > investable) return `${p.label} amount exceeds investable balance`;
+      const min = minInvestFor(p.key, token);
+      if (amt < min) return `${p.label} requires at least ${min} ${symbol}`;
     }
-    if (scallopYes && scallopNum > investable)
-      return "Scallop amount exceeds investable balance";
-    if (naviYes && scallopYes && naviNum + scallopNum > investable)
-      return "Combined amount exceeds investable balance";
-    if (!naviYes && !scallopYes) return "Select at least one protocol";
+    if (combined > investable) return "Combined amount exceeds investable balance";
     return null;
   })();
 
@@ -534,22 +581,24 @@ export function PayrollScreen() {
     setBusy(true);
     const t = toast.loading("Investing idle funds…");
     try {
-      if (naviYes && naviNum > 0) {
-        const needsCap = !(await poolHasNaviCap(client, poolId));
-        toast.loading("Investing into Navi…", { id: t });
-        const r = await signAndExecute({
-          transaction: investNaviTx(poolId, toRaw(token, naviNum), { needsCap }, token),
-        });
-        await client.waitForTransaction({
-          digest: r.digest,
-          options: { showEffects: true, showObjectChanges: true },
-        });
-      }
-      if (scallopYes && scallopNum > 0) {
-        toast.loading("Investing into Scallop…", { id: t });
-        const r = await signAndExecute({
-          transaction: investScallopTx(poolId, toRaw(token, scallopNum), token),
-        });
+      for (const p of protocols) {
+        if (!checkedByKey[p.key]) continue;
+        const amt = amountNumOf(p.key);
+        if (amt <= 0) continue;
+        const amountRaw = toRaw(token, amt);
+        toast.loading(`Investing into ${p.label}…`, { id: t });
+        let transaction;
+        if (p.key === "navi") {
+          const needsCap = !(await poolHasNaviCap(client, poolId));
+          transaction = investNaviTx(poolId, amountRaw, { needsCap }, token);
+        } else if (p.key === "scallop") {
+          transaction = investScallopTx(poolId, amountRaw, token);
+        } else if (p.key === "suilend") {
+          transaction = investSuilendTx(poolId, amountRaw, token);
+        } else {
+          transaction = await investUsdyTx(poolId, amountRaw, token, slippageBps);
+        }
+        const r = await signAndExecute({ transaction });
         await client.waitForTransaction({
           digest: r.digest,
           options: { showEffects: true, showObjectChanges: true },
@@ -613,16 +662,16 @@ export function PayrollScreen() {
     const t = toast.loading(`Moving ${rbAmtNum} ${symbol} · ${rbFrom} → ${rbTo}…`);
     try {
       const needsNaviCap = rbTo === "navi" ? !(await poolHasNaviCap(client, onChainPoolId)) : false;
-      const r = await signAndExecute({
-        transaction: rebalanceTx({
-          poolId: onChainPoolId,
-          token,
-          from: rbFrom,
-          to: rbTo,
-          amountRaw: toRaw(token, rbAmtNum),
-          needsNaviCap,
-        }),
+      const transaction = await rebalanceTx({
+        poolId: onChainPoolId,
+        token,
+        from: rbFrom,
+        to: rbTo,
+        amountRaw: toRaw(token, rbAmtNum),
+        needsNaviCap,
+        slippageBps,
       });
+      const r = await signAndExecute({ transaction });
       await client.waitForTransaction({
         digest: r.digest,
         options: { showEffects: true, showObjectChanges: true },
@@ -817,11 +866,21 @@ export function PayrollScreen() {
           idle={idle}
           navi={navi}
           scallop={scallop}
+          suilend={suilend}
+          usdy={usdy}
           token={token}
           onTopup={() => setTopupOpen(true)}
           onRebalance={totalInPool > 0 ? () => setRebalanceOpen(true) : undefined}
         />
-        <InvestedCard total={totalInPool} idle={idle} navi={navi} scallop={scallop} token={token} />
+        <InvestedCard
+          total={totalInPool}
+          idle={idle}
+          navi={navi}
+          scallop={scallop}
+          suilend={suilend}
+          usdy={usdy}
+          token={token}
+        />
         <MonthlyPayrollCard employees={roster} totalMonthly={totalMonthly} floor={floor} token={token} />
       </div>
 
@@ -943,26 +1002,23 @@ export function PayrollScreen() {
           </>
         }
       >
-        <ProtocolRow
-          name="Navi"
-          apy={naviApy}
-          checked={naviYes}
-          onChecked={setNaviYes}
-          amount={naviAmt}
-          onAmount={setNaviAmt}
-          symbol={symbol}
-          max={investable}
-        />
-        <ProtocolRow
-          name="Scallop"
-          apy={scallopApy}
-          checked={scallopYes}
-          onChecked={setScallopYes}
-          amount={scallopAmt}
-          onAmount={setScallopAmt}
-          symbol={symbol}
-          max={investable}
-        />
+        {protocols.map((p) => (
+          <ProtocolRow
+            key={p.key}
+            name={p.key}
+            label={p.label}
+            apy={apyOf(p.key)}
+            checked={!!checkedByKey[p.key]}
+            onChecked={(v) => setCheckedByKey((prev) => ({ ...prev, [p.key]: v }))}
+            amount={amountByKey[p.key] ?? ""}
+            onAmount={(v) => setAmountByKey((prev) => ({ ...prev, [p.key]: v }))}
+            symbol={symbol}
+            max={investable}
+          />
+        ))}
+        {usdyChecked && (
+          <SlippageInput bps={slippageBps} onBps={setSlippageBps} disabled={busy} />
+        )}
         {validationError && <p className="sweem-error">{validationError}</p>}
       </Modal>
 
@@ -1010,7 +1066,7 @@ export function PayrollScreen() {
         open={rebalanceOpen}
         onClose={() => setRebalanceOpen(false)}
         title="Rebalance pool"
-        subtitle={<>Move funds between idle cash and your Navi / Scallop lending positions.</>}
+        subtitle={<>Move funds between idle cash and your Navi / Scallop / Suilend / Ondo USDY positions.</>}
         footer={
           <>
             <ActionButton onClick={() => setRebalanceOpen(false)}>Cancel</ActionButton>
@@ -1066,6 +1122,9 @@ export function PayrollScreen() {
             <PercentChips max={balances[rbFrom]} onPick={(v) => setRbAmt(String(v))} />
           </div>
         </div>
+        {rbUsesUsdy && (
+          <SlippageInput bps={slippageBps} onBps={setSlippageBps} disabled={busy} />
+        )}
         {rebalanceError && <p className="sweem-error">{rebalanceError}</p>}
       </Modal>
     </DashboardPageShell>

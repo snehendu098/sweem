@@ -6,6 +6,9 @@ import { cn } from "@/lib/utils";
 const LOGOS: Record<string, string> = {
   navi: "/protocols/lending/navi.webp",
   scallop: "/protocols/lending/scallop.png",
+  suilend: "/protocols/lending/suilend.png",
+  stsui: "/protocols/lending/alphafi.png",
+  usdy: "/coins/usdy.svg",
 };
 
 export function ProtocolLogo({

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const PROTOCOLS = ['SCALLOP', 'NAVI', 'USDY', 'BUCKET'] as const
+const PROTOCOLS = ['SCALLOP', 'NAVI', 'SUILEND', 'USDY', 'BUCKET'] as const
 const YIELD_TYPES = ['L', 'Y', 'S'] as const
 
 export const createPoolSchema = z.object({

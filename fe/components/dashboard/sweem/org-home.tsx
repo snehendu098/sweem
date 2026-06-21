@@ -63,7 +63,7 @@ export function OrgHome() {
   const poolId = poolIdByToken[symbol];
 
   const rosterCount = employees.filter((e) => monthlyRate(e, symbol) > 0).length;
-  const earningYield = st.navi + st.scallop;
+  const earningYield = st.navi + st.scallop + st.suilend + st.usdy;
 
   const activityQuery = useQuery({
     queryKey: ["activity", symbol, poolId ?? "all"],
@@ -122,9 +122,10 @@ export function OrgHome() {
             idle={st.idle}
             navi={st.navi}
             scallop={st.scallop}
+            suilend={st.suilend}
+            usdy={st.usdy}
             total={st.totalInPool}
             token={token}
-            className="grow"
           />
         </Column>
 
@@ -154,6 +155,8 @@ export function OrgHome() {
             earning={earningYield}
             naviAmount={st.navi}
             scallopAmount={st.scallop}
+            suilendAmount={st.suilend}
+            usdyAmount={st.usdy}
             yields={api.yieldsByToken.data?.[symbol]?.quotes}
             token={token}
             className="grow"
@@ -251,12 +254,16 @@ const COMPOSITION = [
   { key: "idle", label: "Idle (liquid)", color: "var(--sw-text)" },
   { key: "navi", label: "Navi", color: "var(--sw-mint)" },
   { key: "scallop", label: "Scallop", color: "var(--sw-lavender)" },
+  { key: "suilend", label: "Suilend", color: "#6bb8f5" },
+  { key: "usdy", label: "USDY", color: "#f5c46b" },
 ] as const;
 
 function CompositionCard({
   idle,
   navi,
   scallop,
+  suilend,
+  usdy,
   total,
   token,
   className,
@@ -264,11 +271,13 @@ function CompositionCard({
   idle: number;
   navi: number;
   scallop: number;
+  suilend: number;
+  usdy: number;
   total: number;
   token: TokenConfig;
   className?: string;
 }) {
-  const values: Record<string, number> = { idle, navi, scallop };
+  const values: Record<string, number> = { idle, navi, scallop, suilend, usdy };
   const sum = total > 0 ? total : 1;
 
   return (
@@ -286,7 +295,7 @@ function CompositionCard({
           />
         ))}
       </div>
-      <ul className="mt-5 flex flex-1 flex-col justify-between gap-3">
+      <ul className="mt-4 flex flex-col gap-3.5">
         {COMPOSITION.map((seg) => (
           <li key={seg.key} className="flex items-center justify-between">
             <span className="flex items-center gap-2.5">
@@ -556,6 +565,8 @@ function YieldCard({
   earning,
   naviAmount,
   scallopAmount,
+  suilendAmount,
+  usdyAmount,
   yields,
   token,
   className,
@@ -563,12 +574,16 @@ function YieldCard({
   earning: number;
   naviAmount: number;
   scallopAmount: number;
+  suilendAmount: number;
+  usdyAmount: number;
   yields?: YieldQuote[];
   token: TokenConfig;
   className?: string;
 }) {
   const navi = yields?.find((y) => y.protocol === "NAVI")?.apy;
   const scallop = yields?.find((y) => y.protocol === "SCALLOP")?.apy;
+  const suilend = yields?.find((y) => y.protocol === "SUILEND")?.apy;
+  const usdy = yields?.find((y) => y.protocol === "USDY")?.apy;
 
   return (
     <SweemCard className={`flex flex-col ${className ?? ""}`}>
@@ -577,11 +592,13 @@ function YieldCard({
         <Receipt className="size-4 text-[var(--sw-text-dim)]" strokeWidth={2} />
       </div>
       <MoneyValue value={earning} token={token} className="mt-2 text-[26px] leading-none" />
-      <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">Idle funds invested in lending protocols</p>
+      <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">Idle funds invested in lending &amp; yield protocols</p>
 
       <div className="mt-5 grid flex-1 grid-cols-2 gap-3">
         <YieldChip name="Navi" amount={naviAmount} apy={navi} accent="var(--sw-mint)" />
         <YieldChip name="Scallop" amount={scallopAmount} apy={scallop} accent="var(--sw-lavender)" />
+        <YieldChip name="Suilend" amount={suilendAmount} apy={suilend} accent="#6bb8f5" />
+        <YieldChip name="USDY" amount={usdyAmount} apy={usdy} accent="#f5c46b" />
       </div>
     </SweemCard>
   );

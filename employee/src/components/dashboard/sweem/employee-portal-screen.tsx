@@ -29,10 +29,17 @@ import {
   SweemCard,
 } from "@/components/sweem-ui/primitives";
 import { TokenIcon } from "@/components/sweem-ui/token-icon";
+import { ProtocolLogo } from "@/components/sweem-ui/protocol-logo";
 import { useMounted } from "@/components/sweem-ui/use-mounted";
 import { useSweemApi } from "@/lib/api";
 import { minClaimRaw } from "@/lib/sweem";
 import { TOKENS, toRaw, fromRaw, type TokenConfig, type TokenSymbol } from "@/lib/tokens";
+import {
+  protocolsForScope,
+  minInvestFor,
+  type ProtocolKey,
+  type ProtocolDescriptor,
+} from "@/lib/protocols";
 import {
   findMyStreamPools,
   readStream,
@@ -48,28 +55,44 @@ import {
   claimAndAllocateTx,
   vaultInvestNaviTx,
   vaultInvestScallopTx,
+  vaultInvestSuilendTx,
+  vaultInvestStsuiTx,
+  vaultInvestUsdyTx,
+  vaultWithdrawNaviTx,
+  vaultWithdrawScallopTx,
+  vaultWithdrawSuilendTx,
+  vaultWithdrawStsuiTx,
+  vaultWithdrawUsdyTx,
   vaultHasNaviCap,
   vaultHasBucket,
   readVaultInvestments,
+  DEFAULT_USDY_SLIPPAGE_BPS,
   type StreamState,
   type CoverOpts,
+  type VaultInvestments,
 } from "@/lib/tx";
 import { DashboardPageShell } from "@/components/dashboard/dashboard-screen";
 import { Icon } from "@/components/dashboard/icons";
 import { LiveTicker } from "./live-ticker";
 import { TokenTabs } from "./token-tabs";
-import { ActionButton, AllocRow, Modal, ProtocolRow, ConnectGate } from "./ui";
+import { ActionButton, AllocRow, Modal, ProtocolRow, SlippageInput, ConnectGate } from "./ui";
 import { InvoicesSection } from "./invoices-section";
 import { shortAddr } from "./helpers";
 
-// Saved allocation split (percentages routed off the wallet leg). The wallet leg
-// is implicit: 100 − save − navi − scallop. Persisted per-wallet in localStorage
-// so an employee's "plan" pre-fills the Claim & Allocate sheet next time.
-interface AllocPct {
-  save: number;
-  navi: number;
-  scallop: number;
-}
+// Display color per protocol leg (idle + the five yield protocols).
+const LEG_COLOR: Record<"idle" | ProtocolKey, string> = {
+  idle: "var(--sw-text)",
+  navi: "var(--sw-mint)",
+  scallop: "var(--sw-lavender)",
+  suilend: "#7ec8ff",
+  usdy: "#f5c451",
+  stsui: "#c98bff",
+};
+
+// Saved Claim & Allocate split (percentages per off-wallet leg). The wallet leg
+// is the implicit remainder: 100 − Σ(legs). `save` is the idle bucket leg; the
+// rest are keyed by ProtocolKey. Persisted per-wallet in localStorage.
+type AllocPct = { save: number } & Partial<Record<ProtocolKey, number>>;
 const DEFAULT_ALLOC: AllocPct = { save: 20, navi: 20, scallop: 20 }; // wallet = 40%
 const allocKey = (w: string) => `sweem:alloc:${w}`;
 
@@ -104,15 +127,13 @@ interface PoolView {
 function StreamCard({
   view,
   vaultId,
-  naviApy,
-  scallopApy,
+  apyOf,
   onAllocated,
   onVaultChanged,
 }: {
   view: PoolView;
   vaultId: string | null;
-  naviApy?: number;
-  scallopApy?: number;
+  apyOf: (symbol: TokenSymbol, key: ProtocolKey) => number | undefined;
   onAllocated: () => void;
   onVaultChanged: (id: string) => void;
 }) {
@@ -122,11 +143,22 @@ function StreamCard({
   const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
   const { poolId, token, stream, org, orgName } = view;
 
+  // Vault scope, but pools only ever route into the same protocols a vault would
+  // for this token (claimAndAllocateTx handles the per-leg builders).
+  const protocols = useMemo(() => protocolsForScope("vault", token), [token]);
+  const allocKeys = useMemo<(keyof AllocPct)[]>(
+    () => ["save", ...protocols.map((p) => p.key)],
+    [protocols],
+  );
+
   const [busy, setBusy] = useState(false);
   const [allocOpen, setAllocOpen] = useState(false);
   const [alloc, setAlloc] = useState<AllocPct>(() => loadAlloc(wallet));
   const [saveDefault, setSaveDefault] = useState(true);
+  const [slippageBps, setSlippageBps] = useState(DEFAULT_USDY_SLIPPAGE_BPS);
   const live = !stream.paused && !stream.stopped;
+
+  const usdyInvolved = protocols.some((p) => p.key === "usdy" && (alloc.usdy ?? 0) > 0);
 
   const claimQuery = useQuery({
     queryKey: ["claimable", poolId, wallet],
@@ -207,19 +239,20 @@ function StreamCard({
   }
 
   // ── Claim & Allocate ────────────────────────────────────────────────────
-  const walletPct = Math.max(0, 100 - alloc.save - alloc.navi - alloc.scallop);
+  const legSum = protocols.reduce((s, p) => s + (alloc[p.key] ?? 0), 0) + (alloc.save ?? 0);
+  const walletPct = Math.max(0, 100 - legSum);
   // Live amount preview for a percentage of the current claimable balance.
   const amt = (pct: number) => fromRaw(token, (baseRaw * BigInt(pct)) / 100n);
   // Move one leg; clamp so the editable legs never sum past 100% (wallet ≥ 0).
   function setLeg(key: keyof AllocPct, v: number) {
     setAlloc((prev) => {
-      const others = (["save", "navi", "scallop"] as (keyof AllocPct)[])
+      const others = allocKeys
         .filter((k) => k !== key)
-        .reduce((s, k) => s + prev[k], 0);
+        .reduce((s, k) => s + (prev[k] ?? 0), 0);
       return { ...prev, [key]: Math.max(0, Math.min(v, 100 - others)) };
     });
   }
-  const naviBelowMin = alloc.navi > 0 && amt(alloc.navi) < token.navi.minInvest;
+  const naviBelowMin = (alloc.navi ?? 0) > 0 && amt(alloc.navi ?? 0) < token.navi.minInvest;
 
   async function handleClaimAllocate() {
     setBusy(true);
@@ -227,10 +260,14 @@ function StreamCard({
     try {
       // Fresh read so the split tracks accrual; wallet absorbs any rounding/dust.
       const X = await readClaimable(client, poolId, wallet, token).catch(() => baseRaw);
-      const naviRaw = (X * BigInt(alloc.navi)) / 100n;
-      const scallopRaw = (X * BigInt(alloc.scallop)) / 100n;
-      const idleRaw = (X * BigInt(alloc.save)) / 100n;
-      const bucketDepositRaw = idleRaw + naviRaw + scallopRaw;
+      const pctRaw = (pct: number) => (X * BigInt(pct)) / 100n;
+      const idleRaw = pctRaw(alloc.save ?? 0);
+      const naviRaw = pctRaw(alloc.navi ?? 0);
+      const scallopRaw = pctRaw(alloc.scallop ?? 0);
+      const suilendRaw = pctRaw(alloc.suilend ?? 0);
+      const usdyRaw = pctRaw(alloc.usdy ?? 0);
+      const stsuiRaw = pctRaw(alloc.stsui ?? 0);
+      const bucketDepositRaw = idleRaw + naviRaw + scallopRaw + suilendRaw + usdyRaw + stsuiRaw;
       // Navi rejects sub-minimum deposits — fold those into idle (deposited, not invested).
       const naviMinRaw = toRaw(token, token.navi.minInvest);
       const naviInvestRaw = naviRaw >= naviMinRaw ? naviRaw : 0n;
@@ -246,20 +283,23 @@ function StreamCard({
 
       const covers = await computeCovers();
       toast.loading("Claiming & allocating…", { id: t });
-      const { digest } = await signAndExecute({
-        transaction: claimAndAllocateTx({
-          poolId,
-          vaultId: vid,
-          wallet,
-          token,
-          covers,
-          bucketDepositRaw,
-          naviInvestRaw,
-          scallopInvestRaw: scallopRaw,
-          needsBucket,
-          needsNaviCap,
-        }),
+      const transaction = await claimAndAllocateTx({
+        poolId,
+        vaultId: vid,
+        wallet,
+        token,
+        covers,
+        bucketDepositRaw,
+        naviInvestRaw,
+        scallopInvestRaw: scallopRaw,
+        suilendInvestRaw: suilendRaw,
+        usdyInvestRaw: usdyRaw,
+        stsuiInvestRaw: stsuiRaw,
+        needsBucket,
+        needsNaviCap,
+        slippageBps,
       });
+      const { digest } = await signAndExecute({ transaction });
       await client.waitForTransaction({ digest, options: { showEffects: true } });
       if (saveDefault) saveAlloc(wallet, alloc);
       toast.success("Claimed & allocated", { id: t });
@@ -279,6 +319,17 @@ function StreamCard({
     : stream.paused
       ? "sweem-badge-paused"
       : "sweem-badge-live";
+
+  // Hint text per protocol leg in the allocate sheet.
+  function legHint(p: ProtocolDescriptor): string {
+    const apy = apyOf(token.symbol, p.key);
+    if (p.key === "navi" && naviBelowMin)
+      return `Below ${token.navi.minInvest} ${token.symbol} min — kept idle this claim`;
+    if (apy != null) return `Live APR ${apy.toFixed(2)}%`;
+    if (p.yieldType === "S") return "Staked for yield";
+    if (p.yieldType === "Y") return "Yield-bearing token";
+    return "Earns lending yield";
+  }
 
   return (
     <div className="sweem-card sweem-flow-card">
@@ -363,44 +414,34 @@ function StreamCard({
           pct={walletPct}
           amount={amt(walletPct)}
           symbol={token.symbol}
-          accent="var(--sw-text)"
+          accent={LEG_COLOR.idle}
         />
         <AllocRow
           label="Save (idle in vault)"
           hint="Held in your vault, ready to invest"
-          pct={alloc.save}
-          amount={amt(alloc.save)}
+          pct={alloc.save ?? 0}
+          amount={amt(alloc.save ?? 0)}
           symbol={token.symbol}
           accent="var(--sw-text-dim)"
           onPct={(v) => setLeg("save", v)}
-          max={100 - alloc.navi - alloc.scallop}
+          max={100 - (legSum - (alloc.save ?? 0))}
         />
-        <AllocRow
-          label="Navi"
-          hint={
-            naviBelowMin
-              ? `Below ${token.navi.minInvest} ${token.symbol} min — kept idle this claim`
-              : naviApy != null
-                ? `Live APR ${naviApy.toFixed(2)}%`
-                : "Earns lending yield"
-          }
-          pct={alloc.navi}
-          amount={amt(alloc.navi)}
-          symbol={token.symbol}
-          accent="var(--sw-mint)"
-          onPct={(v) => setLeg("navi", v)}
-          max={100 - alloc.save - alloc.scallop}
-        />
-        <AllocRow
-          label="Scallop"
-          hint={scallopApy != null ? `Live APR ${scallopApy.toFixed(2)}%` : "Earns lending yield"}
-          pct={alloc.scallop}
-          amount={amt(alloc.scallop)}
-          symbol={token.symbol}
-          accent="var(--sw-lavender)"
-          onPct={(v) => setLeg("scallop", v)}
-          max={100 - alloc.save - alloc.navi}
-        />
+        {protocols.map((p) => (
+          <AllocRow
+            key={p.key}
+            label={p.label}
+            hint={legHint(p)}
+            pct={alloc[p.key] ?? 0}
+            amount={amt(alloc[p.key] ?? 0)}
+            symbol={token.symbol}
+            accent={LEG_COLOR[p.key]}
+            onPct={(v) => setLeg(p.key, v)}
+            max={100 - (legSum - (alloc[p.key] ?? 0))}
+          />
+        ))}
+        {usdyInvolved && (
+          <SlippageInput bps={slippageBps} onBps={setSlippageBps} disabled={busy} />
+        )}
       </Modal>
     </div>
   );
@@ -408,26 +449,47 @@ function StreamCard({
 
 /* ── Vault cards ──────────────────────────────────────────────────────── */
 
-const VAULT_ALLOC = [
-  { key: "idle", label: "Idle", color: "var(--sw-text)" },
-  { key: "navi", label: "Navi", color: "var(--sw-mint)" },
-  { key: "scallop", label: "Scallop", color: "var(--sw-lavender)" },
-] as const;
-
+// Invested principal per protocol (human units) + idle + custodied USDY balance.
 interface VaultParts {
   idle: number;
   navi: number;
   scallop: number;
-  naviApy?: number;
-  scallopApy?: number;
+  suilend: number;
+  usdy: number;
+  stsui: number;
+  usdyHeldY: number;
+  apy: Partial<Record<ProtocolKey, number>>;
+}
+
+function partsFrom(token: TokenConfig, inv: VaultInvestments | undefined, apy: Partial<Record<ProtocolKey, number>>): VaultParts {
+  return {
+    idle: fromRaw(token, inv?.idleRaw ?? 0n),
+    navi: fromRaw(token, inv?.naviRaw ?? 0n),
+    scallop: fromRaw(token, inv?.scallopRaw ?? 0n),
+    suilend: fromRaw(token, inv?.suilendRaw ?? 0n),
+    usdy: fromRaw(token, inv?.usdyRaw ?? 0n),
+    stsui: fromRaw(token, inv?.stsuiRaw ?? 0n),
+    usdyHeldY: fromRaw(token, inv?.usdyHeldYRaw ?? 0n),
+    apy,
+  };
+}
+
+// Only show a protocol leg when it's offered for this token OR currently holds value.
+function visibleLegs(parts: VaultParts, protocols: ProtocolDescriptor[]): ProtocolKey[] {
+  const offered = new Set(protocols.map((p) => p.key));
+  return (["navi", "scallop", "suilend", "usdy", "stsui"] as ProtocolKey[]).filter(
+    (k) => offered.has(k) || parts[k] > 0,
+  );
 }
 
 // Compound the invested legs forward; idle stays flat. One point per month.
-function projectGrowth({ idle, navi, scallop, naviApy = 0, scallopApy = 0 }: VaultParts, months = 12) {
+function projectGrowth(parts: VaultParts, legs: ProtocolKey[], months = 12) {
   return Array.from({ length: months + 1 }, (_, m) => {
-    const naviV = navi * Math.pow(1 + naviApy / 100, m / 12);
-    const scallopV = scallop * Math.pow(1 + scallopApy / 100, m / 12);
-    return { month: m, label: m === 0 ? "now" : `${m}mo`, value: idle + naviV + scallopV };
+    const grown = legs.reduce(
+      (s, k) => s + parts[k] * Math.pow(1 + (parts.apy[k] ?? 0) / 100, m / 12),
+      0,
+    );
+    return { month: m, label: m === 0 ? "now" : `${m}mo`, value: parts.idle + grown };
   });
 }
 
@@ -452,13 +514,14 @@ function VaultTooltip({
   );
 }
 
-function VaultBalanceCard({ idle, navi, scallop, token }: VaultParts & { token: TokenConfig }) {
+function VaultBalanceCard({ parts, legs, token, label }: { parts: VaultParts; legs: ProtocolKey[]; token: TokenConfig; label: (k: ProtocolKey) => string }) {
   const mounted = useMounted();
-  const total = idle + navi + scallop;
-  const values: Record<string, number> = { idle, navi, scallop };
-  const slices = VAULT_ALLOC.map((s) => ({ label: s.label, value: values[s.key], color: s.color })).filter(
-    (s) => s.value > 0,
-  );
+  const total = parts.idle + legs.reduce((s, k) => s + parts[k], 0);
+  const rows: { key: "idle" | ProtocolKey; label: string; value: number; color: string }[] = [
+    { key: "idle", label: "Idle", value: parts.idle, color: LEG_COLOR.idle },
+    ...legs.map((k) => ({ key: k, label: label(k), value: parts[k], color: LEG_COLOR[k] })),
+  ];
+  const slices = rows.filter((r) => r.value > 0).map((r) => ({ label: r.label, value: r.value, color: r.color }));
   const data = slices.length ? slices : [{ label: "Empty", value: 1, color: "var(--sw-border)" }];
 
   return (
@@ -500,14 +563,18 @@ function VaultBalanceCard({ idle, navi, scallop, token }: VaultParts & { token: 
       </div>
 
       <ul className="mt-4 flex flex-col gap-2.5">
-        {VAULT_ALLOC.map((s) => (
-          <li key={s.key} className="flex items-center justify-between">
+        {rows.map((r) => (
+          <li key={r.key} className="flex items-center justify-between">
             <span className="flex items-center gap-2.5">
-              <span className="size-2.5 rounded-full" style={{ background: s.color }} />
-              <span className="text-[13px] text-[var(--sw-text-muted)]">{s.label}</span>
+              {r.key === "idle" ? (
+                <span className="size-2.5 rounded-full" style={{ background: r.color }} />
+              ) : (
+                <ProtocolLogo name={r.key} size={14} />
+              )}
+              <span className="text-[13px] text-[var(--sw-text-muted)]">{r.label}</span>
             </span>
             <span className="text-[13px] font-semibold tabular-nums text-[var(--sw-text)]">
-              {values[s.key].toFixed(2)}
+              {r.value.toFixed(2)}
             </span>
           </li>
         ))}
@@ -516,13 +583,10 @@ function VaultBalanceCard({ idle, navi, scallop, token }: VaultParts & { token: 
   );
 }
 
-function VaultPositionsCard({ idle, navi, scallop, naviApy, scallopApy, token }: VaultParts & { token: TokenConfig }) {
-  const invested = navi + scallop;
-  const sum = idle + navi + scallop || 1;
-  const rows = [
-    { label: "Navi", value: navi, apy: naviApy, color: "var(--sw-mint)" },
-    { label: "Scallop", value: scallop, apy: scallopApy, color: "var(--sw-lavender)" },
-  ];
+function VaultPositionsCard({ parts, legs, token, label }: { parts: VaultParts; legs: ProtocolKey[]; token: TokenConfig; label: (k: ProtocolKey) => string }) {
+  const invested = legs.reduce((s, k) => s + parts[k], 0);
+  const sum = parts.idle + invested || 1;
+  const rows = legs.map((k) => ({ key: k, label: label(k), value: parts[k], apy: parts.apy[k], color: LEG_COLOR[k] }));
 
   return (
     <SweemCard className="flex flex-col">
@@ -534,7 +598,7 @@ function VaultPositionsCard({ idle, navi, scallop, naviApy, scallopApy, token }:
       </div>
       <MoneyValue value={invested} token={token} className="mt-3 text-[26px] leading-none" />
       <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">
-        Earning yield · {idle.toFixed(2)} {token.symbol} idle
+        Earning yield · {parts.idle.toFixed(2)} {token.symbol} idle
       </p>
 
       <div className="mt-5 flex flex-1 flex-col justify-center gap-4">
@@ -542,10 +606,10 @@ function VaultPositionsCard({ idle, navi, scallop, naviApy, scallopApy, token }:
           const pct = (r.value / sum) * 100;
           const annual = r.apy != null ? (r.value * r.apy) / 100 : null;
           return (
-            <div key={r.label}>
+            <div key={r.key}>
               <div className="flex items-center justify-between text-[13px]">
                 <span className="flex items-center gap-2.5">
-                  <span className="size-2.5 rounded-full" style={{ background: r.color }} />
+                  <ProtocolLogo name={r.key} size={16} />
                   <span className="text-[var(--sw-text-muted)]">{r.label}</span>
                   <span className="text-[11px] font-medium text-[var(--sw-text-dim)]">
                     {r.apy == null ? "" : `${r.apy.toFixed(2)}% APR`}
@@ -578,17 +642,19 @@ function VaultPositionsCard({ idle, navi, scallop, naviApy, scallopApy, token }:
 }
 
 function VaultGrowthCard({
-  idle,
-  navi,
-  scallop,
-  naviApy,
-  scallopApy,
+  parts,
+  legs,
   token,
   onInvest,
-}: VaultParts & { token: TokenConfig; onInvest: () => void }) {
+}: {
+  parts: VaultParts;
+  legs: ProtocolKey[];
+  token: TokenConfig;
+  onInvest: () => void;
+}) {
   const mounted = useMounted();
-  const invested = navi + scallop;
-  const series = projectGrowth({ idle, navi, scallop, naviApy, scallopApy }, 12);
+  const invested = legs.reduce((s, k) => s + parts[k], 0);
+  const series = projectGrowth(parts, legs, 12);
   const now = series[0].value;
   const future = series[series.length - 1].value;
   const gain = future - now;
@@ -605,7 +671,7 @@ function VaultGrowthCard({
       {invested <= 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
           <p className="text-[13px] text-[var(--sw-text-muted)]">
-            Invest idle funds into Navi or Scallop to project how your vault grows.
+            Invest idle funds into a yield protocol to project how your vault grows.
           </p>
           <button
             onClick={onInvest}
@@ -664,6 +730,20 @@ function VaultGrowthCard({
   );
 }
 
+// Withdraw a vault position back into the idle bucket balance.
+function WithdrawChip({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-full border border-[var(--sw-border)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--sw-text-muted)] transition-colors hover:text-[var(--sw-text)] disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {label}
+    </button>
+  );
+}
+
 export function EmployeePortalScreen() {
   const account = useCurrentAccount();
   const wallet = account?.address;
@@ -674,6 +754,17 @@ export function EmployeePortalScreen() {
   const [vaultId, setVaultId] = useState<string | null>(null);
   const [vaultSymbol, setVaultSymbol] = useState<TokenSymbol>("USDC");
   const vaultToken = TOKENS[vaultSymbol];
+
+  // Protocols available for a personal vault in this token (L/Y/S, scope-filtered).
+  const protocols = useMemo(() => protocolsForScope("vault", vaultToken), [vaultToken]);
+
+  // Live APY for a (token, protocol) pair, resolved by the descriptor's apyEnum.
+  const apyOf = (symbol: TokenSymbol, key: ProtocolKey): number | undefined => {
+    const enumKey = protocolsForScope("vault", TOKENS[symbol]).find((p) => p.key === key)?.apyEnum;
+    if (!enumKey) return undefined;
+    const quotes = api.yieldsByToken.data?.[symbol]?.quotes ?? [];
+    return quotes.find((q) => q.protocol === enumKey)?.apy;
+  };
 
   const poolsQuery = useQuery<PoolView[]>({
     queryKey: ["myStreams", wallet],
@@ -711,10 +802,14 @@ export function EmployeePortalScreen() {
 
   const [investOpen, setInvestOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [naviYes, setNaviYes] = useState(true);
-  const [scallopYes, setScallopYes] = useState(true);
-  const [naviAmt, setNaviAmt] = useState("");
-  const [scallopAmt, setScallopAmt] = useState("");
+  const [slippageBps, setSlippageBps] = useState(DEFAULT_USDY_SLIPPAGE_BPS);
+  // Per-protocol invest dialog state, keyed by ProtocolKey.
+  const [checked, setChecked] = useState<Record<ProtocolKey, boolean>>({
+    navi: true, scallop: true, suilend: false, usdy: false, stsui: false,
+  });
+  const [amounts, setAmounts] = useState<Record<ProtocolKey, string>>({
+    navi: "", scallop: "", suilend: "", usdy: "", stsui: "",
+  });
   const investIdle = vaultInvQuery.data ? fromRaw(vaultToken, vaultInvQuery.data.idleRaw) : 0;
 
   const yieldOpenedRef = useRef(false);
@@ -726,53 +821,87 @@ export function EmployeePortalScreen() {
     if (!investOpen) yieldOpenedRef.current = false;
   }, [investOpen, api.yieldsByToken]);
 
-  const vaultQuotes = api.yieldsByToken.data?.[vaultSymbol]?.quotes ?? [];
-  const vaultNaviApy = vaultQuotes.find((q) => q.protocol === "NAVI")?.apy;
-  const vaultScallopApy = vaultQuotes.find((q) => q.protocol === "SCALLOP")?.apy;
+  const setCheck = (k: ProtocolKey, v: boolean) => setChecked((p) => ({ ...p, [k]: v }));
+  const setAmt = (k: ProtocolKey, v: string) => setAmounts((p) => ({ ...p, [k]: v }));
+  const numOf = (k: ProtocolKey) => Number(amounts[k]) || 0;
 
-  const naviNum = Number(naviAmt) || 0;
-  const scallopNum = Number(scallopAmt) || 0;
+  const investUsdyInvolved = protocols.some((p) => p.key === "usdy" && checked.usdy);
+
   const investError = (() => {
-    if (naviYes) {
-      if (naviNum > investIdle) return "Navi exceeds vault idle balance";
-      if (naviNum < vaultToken.navi.minInvest)
-        return `Navi requires at least ${vaultToken.navi.minInvest} ${vaultSymbol}`;
+    const active = protocols.filter((p) => checked[p.key]);
+    if (active.length === 0) return "Select at least one protocol";
+    let total = 0;
+    for (const p of active) {
+      const n = numOf(p.key);
+      if (n > investIdle) return `${p.label} exceeds vault idle balance`;
+      const min = minInvestFor(p.key, vaultToken);
+      if (n < min) return `${p.label} requires at least ${min} ${vaultSymbol}`;
+      total += n;
     }
-    if (scallopYes && scallopNum > investIdle) return "Scallop exceeds vault idle balance";
-    if (naviYes && scallopYes && naviNum + scallopNum > investIdle)
-      return "Combined amount exceeds vault idle balance";
-    if (!naviYes && !scallopYes) return "Select at least one protocol";
+    if (total > investIdle) return "Combined amount exceeds vault idle balance";
     return null;
   })();
 
   function openInvest() {
-    setNaviAmt("");
-    setScallopAmt("");
+    setAmounts({ navi: "", scallop: "", suilend: "", usdy: "", stsui: "" });
     setInvestOpen(true);
   }
 
   async function handleConfirmInvest() {
     if (!effectiveVault || investError) return;
+    const vid = effectiveVault;
     setBusy(true);
     const t = toast.loading("Investing vault funds…");
     try {
-      if (naviYes && naviNum > 0) {
-        const needsCap = !(await vaultHasNaviCap(client, effectiveVault, vaultToken));
-        toast.loading("Investing into Navi…", { id: t });
-        const r = await signAndExecute({
-          transaction: vaultInvestNaviTx(effectiveVault, toRaw(vaultToken, naviNum), { needsCap }, vaultToken),
-        });
-        await client.waitForTransaction({ digest: r.digest, options: { showEffects: true } });
-      }
-      if (scallopYes && scallopNum > 0) {
-        toast.loading("Investing into Scallop…", { id: t });
-        const r = await signAndExecute({
-          transaction: vaultInvestScallopTx(effectiveVault, toRaw(vaultToken, scallopNum), vaultToken),
-        });
+      for (const p of protocols) {
+        if (!checked[p.key]) continue;
+        const n = numOf(p.key);
+        if (n <= 0) continue;
+        const raw = toRaw(vaultToken, n);
+        toast.loading(`Investing into ${p.label}…`, { id: t });
+        let transaction;
+        if (p.key === "navi") {
+          const needsCap = !(await vaultHasNaviCap(client, vid, vaultToken));
+          transaction = vaultInvestNaviTx(vid, raw, { needsCap }, vaultToken);
+        } else if (p.key === "scallop") {
+          transaction = vaultInvestScallopTx(vid, raw, vaultToken);
+        } else if (p.key === "suilend") {
+          transaction = vaultInvestSuilendTx(vid, raw, vaultToken);
+        } else if (p.key === "stsui") {
+          transaction = vaultInvestStsuiTx(vid, raw);
+        } else {
+          transaction = await vaultInvestUsdyTx(vid, raw, vaultToken, slippageBps);
+        }
+        const r = await signAndExecute({ transaction });
         await client.waitForTransaction({ digest: r.digest, options: { showEffects: true } });
       }
       toast.success("Vault funds invested", { id: t });
       setInvestOpen(false);
+      await vaultInvQuery.refetch();
+    } catch (e) {
+      toast.error((e as Error).message, { id: t });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Move a vault position back into the idle bucket.
+  async function withdrawProtocol(key: ProtocolKey, parts: VaultParts) {
+    if (!effectiveVault) return;
+    const vid = effectiveVault;
+    const label = protocols.find((p) => p.key === key)?.label ?? key;
+    setBusy(true);
+    const t = toast.loading(`Withdrawing from ${label}…`);
+    try {
+      let transaction;
+      if (key === "navi") transaction = vaultWithdrawNaviTx(vid, toRaw(vaultToken, parts.navi), vaultToken);
+      else if (key === "scallop") transaction = vaultWithdrawScallopTx(vid, toRaw(vaultToken, parts.scallop), vaultToken);
+      else if (key === "suilend") transaction = vaultWithdrawSuilendTx(vid, vaultToken); // full position
+      else if (key === "stsui") transaction = vaultWithdrawStsuiTx(vid); // full position
+      else transaction = await vaultWithdrawUsdyTx(vid, toRaw(vaultToken, parts.usdyHeldY), vaultToken, slippageBps); // full Y
+      const r = await signAndExecute({ transaction });
+      await client.waitForTransaction({ digest: r.digest, options: { showEffects: true } });
+      toast.success("Moved to vault balance", { id: t });
       await vaultInvQuery.refetch();
     } catch (e) {
       toast.error((e as Error).message, { id: t });
@@ -792,7 +921,13 @@ export function EmployeePortalScreen() {
   }
 
   const pools = poolsQuery.data ?? [];
-  const vinv = vaultInvQuery.data;
+  const apyMap: Partial<Record<ProtocolKey, number>> = Object.fromEntries(
+    protocols.map((p) => [p.key, apyOf(vaultSymbol, p.key)]),
+  );
+  const parts = partsFrom(vaultToken, vaultInvQuery.data, apyMap);
+  const legs = visibleLegs(parts, protocols);
+  const labelOf = (k: ProtocolKey) => protocols.find((p) => p.key === k)?.label ?? k;
+  const withdrawable = legs.filter((k) => parts[k] > 0);
 
   return (
     <DashboardPageShell
@@ -810,23 +945,19 @@ export function EmployeePortalScreen() {
         </div>
       ) : (
         <div className="grid gap-5 mt-5">
-          {pools.map((v) => {
-            const quotes = api.yieldsByToken.data?.[v.token.symbol]?.quotes ?? [];
-            return (
-              <StreamCard
-                key={v.poolId}
-                view={v}
-                vaultId={effectiveVault}
-                naviApy={quotes.find((q) => q.protocol === "NAVI")?.apy}
-                scallopApy={quotes.find((q) => q.protocol === "SCALLOP")?.apy}
-                onAllocated={() => {
-                  vaultInvQuery.refetch();
-                  vaultQuery.refetch();
-                }}
-                onVaultChanged={(id) => setVaultId(id)}
-              />
-            );
-          })}
+          {pools.map((v) => (
+            <StreamCard
+              key={v.poolId}
+              view={v}
+              vaultId={effectiveVault}
+              apyOf={apyOf}
+              onAllocated={() => {
+                vaultInvQuery.refetch();
+                vaultQuery.refetch();
+              }}
+              onVaultChanged={(id) => setVaultId(id)}
+            />
+          ))}
         </div>
       )}
 
@@ -848,30 +979,24 @@ export function EmployeePortalScreen() {
             </ActionButton>
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <VaultBalanceCard
-              idle={fromRaw(vaultToken, vinv?.idleRaw ?? 0n)}
-              navi={fromRaw(vaultToken, vinv?.naviRaw ?? 0n)}
-              scallop={fromRaw(vaultToken, vinv?.scallopRaw ?? 0n)}
-              token={vaultToken}
-            />
-            <VaultPositionsCard
-              idle={fromRaw(vaultToken, vinv?.idleRaw ?? 0n)}
-              navi={fromRaw(vaultToken, vinv?.naviRaw ?? 0n)}
-              scallop={fromRaw(vaultToken, vinv?.scallopRaw ?? 0n)}
-              naviApy={vaultNaviApy}
-              scallopApy={vaultScallopApy}
-              token={vaultToken}
-            />
-            <VaultGrowthCard
-              idle={fromRaw(vaultToken, vinv?.idleRaw ?? 0n)}
-              navi={fromRaw(vaultToken, vinv?.naviRaw ?? 0n)}
-              scallop={fromRaw(vaultToken, vinv?.scallopRaw ?? 0n)}
-              naviApy={vaultNaviApy}
-              scallopApy={vaultScallopApy}
-              token={vaultToken}
-              onInvest={openInvest}
-            />
+            <VaultBalanceCard parts={parts} legs={legs} token={vaultToken} label={labelOf} />
+            <VaultPositionsCard parts={parts} legs={legs} token={vaultToken} label={labelOf} />
+            <VaultGrowthCard parts={parts} legs={legs} token={vaultToken} onInvest={openInvest} />
           </div>
+
+          {/* per-protocol withdraw → idle */}
+          {withdrawable.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {withdrawable.map((k) => (
+                <WithdrawChip
+                  key={k}
+                  label={`Withdraw ${parts[k].toFixed(2)} from ${labelOf(k)}`}
+                  onClick={() => withdrawProtocol(k, parts)}
+                  disabled={busy}
+                />
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -897,26 +1022,23 @@ export function EmployeePortalScreen() {
           </>
         }
       >
-        <ProtocolRow
-          name="Navi"
-          apy={vaultNaviApy}
-          checked={naviYes}
-          onChecked={setNaviYes}
-          amount={naviAmt}
-          onAmount={setNaviAmt}
-          symbol={vaultSymbol}
-          max={investIdle}
-        />
-        <ProtocolRow
-          name="Scallop"
-          apy={vaultScallopApy}
-          checked={scallopYes}
-          onChecked={setScallopYes}
-          amount={scallopAmt}
-          onAmount={setScallopAmt}
-          symbol={vaultSymbol}
-          max={investIdle}
-        />
+        {protocols.map((p) => (
+          <ProtocolRow
+            key={p.key}
+            name={p.key}
+            label={p.label}
+            apy={apyOf(vaultSymbol, p.key)}
+            checked={checked[p.key]}
+            onChecked={(v) => setCheck(p.key, v)}
+            amount={amounts[p.key]}
+            onAmount={(v) => setAmt(p.key, v)}
+            symbol={vaultSymbol}
+            max={investIdle}
+          />
+        ))}
+        {investUsdyInvolved && (
+          <SlippageInput bps={slippageBps} onBps={setSlippageBps} disabled={busy} />
+        )}
         {investError && <p className="sweem-error">{investError}</p>}
       </Modal>
     </DashboardPageShell>

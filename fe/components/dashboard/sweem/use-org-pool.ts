@@ -28,6 +28,9 @@ export interface TokenPoolState {
   idle: number;
   navi: number;
   scallop: number;
+  suilend: number;
+  usdy: number; // base-token (T) principal in the USDY position
+  usdyHeldY: number; // custodied USDY (Y) balance, for withdraw sizing
   totalInPool: number;
   floor: number;
   weeklyRaw: bigint;
@@ -44,6 +47,9 @@ const emptyState = (poolId?: string): TokenPoolState => ({
   idle: 0,
   navi: 0,
   scallop: 0,
+  suilend: 0,
+  usdy: 0,
+  usdyHeldY: 0,
   totalInPool: 0,
   floor: 0,
   weeklyRaw: 0n,
@@ -119,6 +125,8 @@ export function useOrgPool() {
           const idle = fromRaw(token, summary.idleRaw);
           const navi = fromRaw(token, inv.naviRaw);
           const scallop = fromRaw(token, inv.scallopRaw);
+          const suilend = fromRaw(token, inv.suilendRaw);
+          const usdy = fromRaw(token, inv.usdyRaw);
           states[token.symbol] = {
             poolId: id,
             funded: summary.totalDepositedRaw > 0n,
@@ -126,7 +134,10 @@ export function useOrgPool() {
             idle,
             navi,
             scallop,
-            totalInPool: idle + navi + scallop,
+            suilend,
+            usdy,
+            usdyHeldY: fromRaw(token, inv.usdyHeldYRaw),
+            totalInPool: idle + navi + scallop + suilend + usdy,
             floor: fromRaw(token, summary.weeklyCommittedRaw),
             weeklyRaw: summary.weeklyCommittedRaw,
             streamedBaseRaw: summary.totalClaimedRaw + accruedRaw,
