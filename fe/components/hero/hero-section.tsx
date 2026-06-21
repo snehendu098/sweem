@@ -3,20 +3,6 @@ import { LaunchAppButton } from "@/components/shared/launch-app-button";
 import { SpotlightNew } from "@/components/ui/aceternity/spotlight-new";
 import { BackgroundRippleEffect } from "@/components/ui/background-ripple-effect";
 
-function GoogleIcon() {
-  return (
-    <span className="text-[17px] font-semibold leading-none text-white">G</span>
-  );
-}
-
-function AppleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="white" aria-hidden>
-      <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.49-.12-1.12.43-2.3 1.1-3.05.744-.83 2.02-1.45 3.064-1.52zm4.06 16.2c-.55 1.27-.81 1.83-1.52 2.95-.99 1.57-2.39 3.52-4.12 3.54-1.54.01-1.93-1-4.02-.99-2.09.01-2.52.99-4.06.97-1.73-.02-3.05-1.78-4.04-3.34C-.06 17.92-.32 12.5 1.7 9.86c1-1.32 2.58-2.16 4.06-2.16 1.78 0 2.9 1 4.37 1 1.43 0 2.3-1 4.36-1 1.31 0 2.7.71 3.69 1.95-3.24 1.78-2.71 6.4.25 7.98z" />
-    </svg>
-  );
-}
-
 export function HeroSection() {
   return (
     <section
@@ -56,12 +42,6 @@ export function HeroSection() {
           <LaunchAppButton className="rounded-full bg-[#c4f56b] px-6 py-3 text-[14px] font-semibold text-[#0a0c10]">
             Launch Dashboard
           </LaunchAppButton>
-          <button className="grid size-12 place-items-center rounded-full border border-white/12 bg-white/5 backdrop-blur-md">
-            <GoogleIcon />
-          </button>
-          <button className="grid size-12 place-items-center rounded-full border border-white/12 bg-white/5 backdrop-blur-md">
-            <AppleIcon />
-          </button>
         </div>
       </div>
 
