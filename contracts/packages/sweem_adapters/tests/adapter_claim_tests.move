@@ -10,10 +10,18 @@ use sweem_core::stream_pool;
 use sweem_registry::registry;
 use sweem_adapters::navi;
 use sweem_adapters::scallop;
+use sweem_adapters::suilend;
 
 public struct USDC has drop {}
 
 fun approved_registry(ctx: &mut TxContext): registry::ProtocolRegistry {
+    registry::create_test_registry_with(
+        vector[string::utf8(b"navi"), string::utf8(b"scallop"), string::utf8(b"suilend")],
+        ctx,
+    )
+}
+
+fun registry_without_suilend(ctx: &mut TxContext): registry::ProtocolRegistry {
     registry::create_test_registry_with(
         vector[string::utf8(b"navi"), string::utf8(b"scallop")],
         ctx,
@@ -214,5 +222,111 @@ fun org_withdraw_scallop_non_org_aborts() {
 
     scenario.next_tx(intruder);
     scallop::org_withdraw_scallop<USDC>(&mut pool, &reg, &config, 500, scenario.ctx());
+    abort 0
+}
+
+// ── suilend mirrors (same gating/auth contract as navi/scallop) ──────────────
+
+#[test]
+fun cover_claim_suilend_noop_when_no_claim() {
+    let org = @0xA;
+    let mut scenario = test_scenario::begin(org);
+    let reg = approved_registry(scenario.ctx());
+    let config = registry::create_test_config(scenario.ctx());
+    let mut pool = stream_pool::create_pool<USDC>(scenario.ctx());
+    let clock = clock::create_for_testing(scenario.ctx());
+
+    suilend::cover_claim_from_suilend<USDC>(&mut pool, &reg, &config, &clock, 1_000_000, scenario.ctx());
+
+    clock::destroy_for_testing(clock);
+    destroy(pool);
+    destroy(reg);
+    destroy(config);
+    scenario.end();
+}
+
+#[test]
+fun cover_claim_suilend_noop_for_non_employee() {
+    let org = @0xA;
+    let stranger = @0xDEAD;
+    let mut scenario = test_scenario::begin(org);
+    let reg = approved_registry(scenario.ctx());
+    let config = registry::create_test_config(scenario.ctx());
+    let mut pool = stream_pool::create_pool<USDC>(scenario.ctx());
+    let clock = clock::create_for_testing(scenario.ctx());
+
+    scenario.next_tx(stranger);
+    suilend::cover_claim_from_suilend<USDC>(&mut pool, &reg, &config, &clock, 1_000_000, scenario.ctx());
+
+    clock::destroy_for_testing(clock);
+    destroy(pool);
+    destroy(reg);
+    destroy(config);
+    scenario.end();
+}
+
+#[test]
+fun cover_claim_suilend_noop_when_covered() {
+    let org = @0xA;
+    let employee = @0xB;
+    let mut scenario = test_scenario::begin(org);
+    let reg = approved_registry(scenario.ctx());
+    let config = registry::create_test_config(scenario.ctx());
+    let mut pool = stream_pool::create_pool<USDC>(scenario.ctx());
+    let mut clock = clock::create_for_testing(scenario.ctx());
+
+    let payment = coin::mint_for_testing<USDC>(10_000_000_000, scenario.ctx());
+    stream_pool::deposit(&mut pool, &config, payment, vector[employee], vector[1u128], vector[1u64], &clock, scenario.ctx());
+    clock::increment_for_testing(&mut clock, 604_800_000);
+
+    scenario.next_tx(employee);
+    suilend::cover_claim_from_suilend<USDC>(&mut pool, &reg, &config, &clock, 1_000_000_000, scenario.ctx());
+
+    clock::destroy_for_testing(clock);
+    destroy(pool);
+    destroy(reg);
+    destroy(config);
+    scenario.end();
+}
+
+#[test]
+fun org_withdraw_suilend_happy_path() {
+    let org = @0xA;
+    let mut scenario = test_scenario::begin(org);
+    let reg = approved_registry(scenario.ctx());
+    let config = registry::create_test_config(scenario.ctx());
+    let mut pool = stream_pool::create_pool<USDC>(scenario.ctx());
+
+    suilend::org_withdraw_suilend<USDC>(&mut pool, &reg, &config, 500, scenario.ctx());
+
+    destroy(pool);
+    destroy(reg);
+    destroy(config);
+    scenario.end();
+}
+
+#[test, expected_failure(abort_code = 1, location = sweem_adapters::suilend)]
+fun org_withdraw_suilend_non_org_aborts() {
+    let org = @0xA;
+    let intruder = @0xC;
+    let mut scenario = test_scenario::begin(org);
+    let reg = approved_registry(scenario.ctx());
+    let config = registry::create_test_config(scenario.ctx());
+    let mut pool = stream_pool::create_pool<USDC>(scenario.ctx());
+
+    scenario.next_tx(intruder);
+    suilend::org_withdraw_suilend<USDC>(&mut pool, &reg, &config, 500, scenario.ctx());
+    abort 0
+}
+
+// Org sender but suilend NOT approved in registry → pool_invest aborts (code 0).
+#[test, expected_failure(abort_code = 0, location = sweem_adapters::suilend)]
+fun pool_invest_suilend_unapproved_aborts() {
+    let org = @0xA;
+    let mut scenario = test_scenario::begin(org);
+    let reg = registry_without_suilend(scenario.ctx());
+    let mut pool = stream_pool::create_pool<USDC>(scenario.ctx());
+
+    suilend::pool_invest_suilend<USDC>(&mut pool, &reg, 500, scenario.ctx());
     abort 0
 }

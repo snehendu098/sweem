@@ -10,3 +10,12 @@ oracle = { git = "https://github.com/naviprotocol/navi-smart-contracts.git", sub
 openzeppelin_math = { git = "https://github.com/OpenZeppelin/contracts-sui.git", subdir = "math/core", rev = "6df7fd42f6560a65bc487a9d5858ee22f65400f7" }
 protocol = { git = "https://github.com/scallop-io/sui-lending-protocol.git", subdir = "contracts/protocol", rev = "334e93a1232a1d9417466080ae24491be3f7b27c" }
 x = { git = "https://github.com/scallop-io/sui-lending-protocol.git", subdir = "contracts/libs/x", rev = "334e93a1232a1d9417466080ae24491be3f7b27c" }
+suilend = { git = "https://github.com/solendprotocol/suilend.git", subdir = "contracts/suilend", rev = "d5ba83a617bb0778b48b0c3b1e77a87be81258ca" }
+# Navi (lending_core) and Suilend each vendor the same on-chain Switchboard package
+# (named address `switchboard = 0xc3...8ea3`) from different git sources. Pin one source
+# explicitly to resolve the duplicate. switchboard-xyz/sui is the canonical upstream.
+switchboard = { git = "https://github.com/switchboard-xyz/sui.git", subdir = "on_demand/", rev = "mainnet", override = true }
+# Same situation for Pyth: Navi and Suilend each vendor a fork of pyth-crosschain that
+# resolves to the identical on-chain package (published-at 0x04e20ddf…, addr 0x8d97f1cd…5a9e).
+# Pin one source. Both forks share the same published-at, so linkage is unaffected.
+pyth = { git = "https://github.com/naviprotocol/pyth-crosschain.git", subdir = "target_chains/sui/contracts", rev = "1880b24c6acfaac101747f863c5047fff9adaa0f", override = true }

@@ -62,6 +62,20 @@ export const SCALLOP_VERSION =
 export const SCALLOP_MARKET =
   '0xa757975255146dc9686aa823b7838b507f315d704f428cbadad2f4ea061939d9'
 
+// ----- Suilend mainnet ------------------------------------------------------
+// LendingMarket<MAIN_POOL> shared object. The adapter resolves the USDC reserve
+// index on-chain (reserve_array_index<MAIN_POOL,T>), so no index constant needed.
+export const SUILEND_LENDING_MARKET =
+  env('SUILEND_LENDING_MARKET') ??
+  '0x84030d26d85eaa7035084a057f2f11f701b7e2e4eda87551becbc7c97505ece1'
+// Suilend has no Navi-style 5 USDC floor; small amounts ok. Defaults sized for a
+// thin (~0.24 USDC) wallet — override via env for a larger run.
+export const SUILEND_DEPOSIT_AMOUNT = BigInt(env('SUILEND_DEPOSIT_AMOUNT') ?? '200000') // 0.20 USDC gross
+export const SUILEND_INVEST_AMOUNT = BigInt(env('SUILEND_INVEST_AMOUNT') ?? '100000') // 0.10 USDC
+export const SUILEND_STREAM_RATE = BigInt(env('SUILEND_STREAM_RATE') ?? '1000') // dust rate / period
+// Reuse an existing pool instead of creating a fresh one (org must be the signer).
+export const SUILEND_POOL = env('SUILEND_POOL')
+
 // ----- Fees (bps). On-chain caps: deposit <= 500, yield <= 5000. ------------
 export const DEPOSIT_FEE_BPS = Number(env('DEPOSIT_FEE_BPS') ?? '25') // 0.25%
 export const ORG_YIELD_FEE_BPS = Number(env('ORG_YIELD_FEE_BPS') ?? '1000') // 10%
