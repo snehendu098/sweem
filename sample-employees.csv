@@ -1,0 +1,11 @@
+Employee Name,Sui Wallet,Work Email,Monthly Salary,Pay Cadence,Team,Currency,Notes
+Alice Johnson,0xa1b2c3d4e5f60718a1b2c3d4e5f60718a1b2c3d4e5f60718a1b2c3d4e5f60718,alice@acme.com,"$1,200.00",Monthly,Engineering,USDC,joined Q1
+Bob Smith,0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef,bob@acme.com,45,per hour,Design,USDC,contractor
+Carla Mendez,0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321,carla@acme.com,500,monthly,Engineering,SUI,
+David Okafor,0x0a1b2c3d4e5f60710a1b2c3d4e5f60710a1b2c3d4e5f60710a1b2c3d4e5f6071,david@acme.com,2.5k,monthly,Marketing,USDC,senior
+Eve Liu,0x9988776655443322998877665544332299887766554433229988776655443322,eve@acme.com,"USDC 3,000.50",mo,Finance,USDC,
+Frank Bad,0x123,frank@acme.com,800,monthly,Ops,USDC,bad wallet
+,0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789,noname@acme.com,900,monthly,Sales,USDC,missing name
+Grace Hall,0xa1b2c3d4e5f60718a1b2c3d4e5f60718a1b2c3d4e5f60718a1b2c3d4e5f60718,grace@acme.com,1000,monthly,Engineering,USDC,duplicate wallet of Alice
+Henry Ford,0x55aa55aa55aa55aa55aa55aa55aa55aa55aa55aa55aa55aa55aa55aa55aa55aa5,bademail,,monthly,Ops,USDC,missing rate and bad email
+Iris West,0x77bb77bb77bb77bb77bb77bb77bb77bb77bb77bb77bb77bb77bb77bb77bb77bb7,iris@acme.com,1500,annual,Engineering,SUI,annual maps to monthly

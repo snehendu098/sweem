@@ -25,7 +25,7 @@ export function TokenIcon({
   );
 }
 
-// Inline amount with a leading coin logo — the per-token replacement for "$N".
+// Inline amount with a leading coin logo, the per-token replacement for "$N".
 export function TokenAmount({
   token,
   value,

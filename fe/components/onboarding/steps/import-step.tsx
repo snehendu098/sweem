@@ -1,23 +1,28 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Sparkles, Trash2, Upload } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, RefreshCw, Trash2, Upload } from "lucide-react";
 import type { SweemApi } from "../onboarding-wizard";
+import type { BulkResult } from "@/lib/api";
 import { Card, GhostButton, PrimaryButton } from "../ui";
+import { TokenIcon } from "@/components/sweem-ui/token-icon";
 import {
   parseCsvFile,
-  applyMapping,
+  ingestCsv,
   revalidate,
   toBulkInput,
+  fieldLabel,
   type ParsedCsv,
   type ParsedEmployee,
+  type IngestResult,
 } from "@/lib/csv";
-import { TOKEN_SYMBOLS, type TokenSymbol } from "@/lib/tokens";
+import { TOKEN_SYMBOLS, TOKENS, type TokenSymbol } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 
-type Phase = "upload" | "mapping" | "preview";
+type Phase = "upload" | "parsing" | "preview" | "done";
 
 export function ImportStep({
   api,
@@ -33,7 +38,9 @@ export function ImportStep({
   const [phase, setPhase] = useState<Phase>("upload");
   const [dragging, setDragging] = useState(false);
   const [rows, setRows] = useState<ParsedEmployee[]>([]);
-  const [source, setSource] = useState<string>("");
+  const [meta, setMeta] = useState<Omit<IngestResult, "rows"> | null>(null);
+  const [existing, setExisting] = useState<Set<string>>(new Set());
+  const [report, setReport] = useState<BulkResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleFile(file: File) {
@@ -41,14 +48,22 @@ export function ImportStep({
       toast.error("Please upload a .csv file");
       return;
     }
-    setPhase("mapping");
+    setPhase("parsing");
     try {
       const csv: ParsedCsv = await parseCsvFile(file);
-      const sample = csv.rows.slice(0, 3);
-      const { mapping, defaults, source } = await api.mapCsv(csv.headers, sample);
-      const parsed = applyMapping(csv, mapping, defaults);
-      setRows(parsed);
-      setSource(source);
+      // Fetch the current roster (public GET, no signature) so we can flag rows
+      // that will UPDATE an existing employee vs create a new one.
+      let existingWallets = new Set<string>();
+      try {
+        const roster = await api.listEmployees(wallet);
+        existingWallets = new Set(roster.map((e) => e.walletAddress.toLowerCase()));
+      } catch {
+        /* fresh org or unreachable, treat everyone as new */
+      }
+      const result = ingestCsv(csv, existingWallets);
+      setRows(result.rows);
+      setMeta({ resolutions: result.resolutions, ignoredHeaders: result.ignoredHeaders, totalRows: result.totalRows });
+      setExisting(existingWallets);
       setPhase("preview");
     } catch (e) {
       toast.error((e as Error).message);
@@ -57,7 +72,7 @@ export function ImportStep({
   }
 
   function updateRow(i: number, patch: Partial<ParsedEmployee>) {
-    setRows((prev) => prev.map((r, j) => (j === i ? revalidate({ ...r, ...patch }) : r)));
+    setRows((prev) => prev.map((r, j) => (j === i ? revalidate({ ...r, ...patch }, existing) : r)));
   }
 
   async function handleSubmit() {
@@ -68,11 +83,19 @@ export function ImportStep({
     }
     setSubmitting(true);
     try {
-      const res = await api.bulkAddEmployees(wallet, payload);
+      // The bulk endpoint accepts up to 1000 rows per request; chunk larger
+      // imports and aggregate the report so big files still go through.
+      const CHUNK = 1000;
+      const agg: BulkResult = { created: 0, updated: 0, skipped: [], failed: [] };
+      for (let i = 0; i < payload.length; i += CHUNK) {
+        const res = await api.bulkAddEmployees(wallet, payload.slice(i, i + CHUNK));
+        agg.created += res.created;
+        agg.updated += res.updated ?? 0;
+        agg.failed.push(...(res.failed ?? []));
+      }
       await qc.invalidateQueries({ queryKey: ["employees", wallet] });
-      const dupes = res.skipped.length ? `, ${res.skipped.length} duplicate skipped` : "";
-      toast.success(`Imported ${res.created} employee${res.created === 1 ? "" : "s"}${dupes}`);
-      onNext();
+      setReport(agg);
+      setPhase("done");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -83,9 +106,10 @@ export function ImportStep({
   // ---- upload ----
   if (phase === "upload") {
     return (
+      <div className="mx-auto w-full max-w-2xl">
       <Card
         title="Import your team"
-        subtitle="Upload a CSV of employees. Our AI maps your columns automatically — any format works."
+        subtitle="Upload a CSV of employees. Columns are mapped automatically, in any format or order."
         footer={
           <>
             <span className="text-[12px] text-[var(--sw-text-dim)]">Step 2 of 4 · optional</span>
@@ -136,31 +160,83 @@ export function ImportStep({
           </span>
         </button>
       </Card>
+      </div>
     );
   }
 
-  // ---- mapping (AI working) ----
-  if (phase === "mapping") {
+  // ---- parsing ----
+  if (phase === "parsing") {
     return (
-      <Card title="Reading your CSV" subtitle="Our AI is figuring out which column is which…">
+      <div className="mx-auto w-full max-w-2xl">
+      <Card title="Reading your CSV" subtitle="Mapping columns and validating rows…">
         <div className="flex items-center gap-3 rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-4 py-6">
           <Loader2 className="size-5 animate-spin text-[var(--sw-mint)]" />
-          <span className="text-[13.5px] text-[var(--sw-text-muted)]">Mapping columns…</span>
+          <span className="text-[13.5px] text-[var(--sw-text-muted)]">Processing…</span>
         </div>
       </Card>
+      </div>
+    );
+  }
+
+  // ---- done (import report) ----
+  if (phase === "done" && report) {
+    const failedRows = report.failed ?? [];
+    return (
+      <div className="mx-auto w-full max-w-2xl">
+      <Card
+        title="Import complete"
+        subtitle="Here's how your CSV was processed."
+        footer={
+          <>
+            <GhostButton onClick={() => setPhase("upload")}>Import another</GhostButton>
+            <PrimaryButton onClick={onNext}>Continue</PrimaryButton>
+          </>
+        }
+      >
+        <div className="grid grid-cols-3 gap-2.5">
+          <Stat label="Imported" value={report.created} tone="mint" />
+          <Stat label="Updated" value={report.updated ?? 0} tone="blue" />
+          <Stat label="Failed" value={failedRows.length} tone={failedRows.length ? "red" : "muted"} />
+        </div>
+        {failedRows.length > 0 && (
+          <div data-lenis-prevent className="mt-4 max-h-[28vh] overflow-auto overscroll-contain rounded-xl border border-[var(--sw-border)]">
+            <table className="w-full text-left text-[12.5px]">
+              <thead className="bg-[var(--sw-card-inset)] text-[11px] uppercase tracking-wide text-[var(--sw-text-dim)]">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Wallet</th>
+                  <th className="px-3 py-2 font-medium">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {failedRows.map((f, i) => (
+                  <tr key={i} className="border-t border-[var(--sw-border)]">
+                    <td className="px-3 py-2 font-mono text-[var(--sw-text-muted)]">
+                      {f.wallet_address ? `${f.wallet_address.slice(0, 10)}…` : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-[#ff9b9b]">{f.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+      </div>
     );
   }
 
   // ---- preview ----
-  const readyCount = rows.filter((r) => r.errors.length === 0).length;
+  const counts = { new: 0, update: 0, invalid: 0 };
+  for (const r of rows) counts[r.action]++;
+  const readyCount = counts.new + counts.update;
+
   return (
     <Card
       title="Review imported employees"
       subtitle={
         <>
-          <Sparkles className="mr-1 inline size-3.5 text-[var(--sw-mint)]" />
-          AI-mapped {rows.length} row{rows.length === 1 ? "" : "s"} ({source}). Fix any flagged
-          rows — only valid rows are imported.
+          Mapped {rows.length} row{rows.length === 1 ? "" : "s"}. Fix any flagged rows, valid rows are
+          created or updated on import.
         </>
       }
       footer={
@@ -180,42 +256,90 @@ export function ImportStep({
         </>
       }
     >
-      <div className="-mx-1 max-h-[46vh] overflow-auto">
-        <table className="w-full min-w-[680px] border-separate border-spacing-y-1.5 text-[12.5px]">
+      {/* mapping summary */}
+      {meta && (
+        <div className="mb-3 rounded-2xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] p-3.5">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--sw-text-dim)]">
+              Column mapping
+            </p>
+            <div className="flex items-center gap-1.5">
+              <CountPill tone="mint" value={counts.new} label="new" />
+              {counts.update > 0 && <CountPill tone="blue" value={counts.update} label="update" />}
+              {counts.invalid > 0 && <CountPill tone="red" value={counts.invalid} label="invalid" />}
+            </div>
+          </div>
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {meta.resolutions.map((res) => (
+              <span
+                key={res.field}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11.5px]",
+                  res.header
+                    ? "border-[var(--sw-border)] bg-[var(--sw-card)]"
+                    : "border-[rgba(255,120,120,0.3)] bg-[rgba(255,120,120,0.08)]"
+                )}
+                title={res.header ? `Matched via ${res.via}` : "Not found in CSV"}
+              >
+                <span className="font-medium text-[var(--sw-text)]">{fieldLabel(res.field)}</span>
+                <ArrowRight className="size-3 text-[var(--sw-text-dim)]" />
+                <span className={res.header ? "text-[var(--sw-mint)]" : "text-[#ff9b9b]"}>
+                  {res.header ?? "not found"}
+                </span>
+              </span>
+            ))}
+          </div>
+          {meta.ignoredHeaders.length > 0 && (
+            <p className="mt-2.5 text-[11.5px] text-[var(--sw-text-dim)]">
+              Ignored columns: {meta.ignoredHeaders.join(", ")}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div data-lenis-prevent className="-mx-1 max-h-[40vh] overflow-auto overscroll-contain">
+        <table className="w-full min-w-[700px] border-separate border-spacing-y-1.5 text-[12.5px]">
           <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-[var(--sw-text-dim)]">
-              <th className="px-2 font-medium">Name</th>
-              <th className="px-2 font-medium">Wallet</th>
-              <th className="px-2 font-medium">Rate</th>
-              <th className="px-2 font-medium">Token</th>
-              <th className="px-2 font-medium">Type</th>
-              <th className="px-2 font-medium">Group</th>
-              <th className="px-2 font-medium">Status</th>
-              <th className="px-2" />
+            <tr className="text-left text-[11px] uppercase tracking-wide text-[var(--sw-text-dim)] [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-[var(--sw-card)] [&>th]:px-2 [&>th]:pb-1.5 [&>th]:font-medium">
+              <th>Name</th>
+              <th>Wallet</th>
+              <th>Rate</th>
+              <th>Token</th>
+              <th>Type</th>
+              <th>Group</th>
+              <th>Status</th>
+              <th />
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => {
-              const ok = r.errors.length === 0;
+              const has = (kw: string) => r.errors.some((e) => e.includes(kw));
               return (
-                <tr key={i} className="align-top">
+                <tr
+                  key={i}
+                  className={cn(
+                    "align-middle [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg",
+                    r.action === "invalid" && "bg-[rgba(255,107,107,0.06)]",
+                    r.action === "update" && "bg-[rgba(120,170,255,0.06)]"
+                  )}
+                >
                   <td className="px-1">
                     <input
-                      className={cellCls}
+                      className={errCls(has("name"))}
                       value={r.alias}
                       onChange={(e) => updateRow(i, { alias: e.target.value })}
                     />
                   </td>
                   <td className="px-1">
                     <input
-                      className={cn(cellCls, "font-mono w-[150px]")}
+                      className={cn(errCls(has("wallet") || has("address")), "font-mono w-[150px]")}
                       value={r.wallet_address}
                       onChange={(e) => updateRow(i, { wallet_address: e.target.value })}
                     />
                   </td>
                   <td className="px-1">
                     <input
-                      className={cn(cellCls, "w-[72px]")}
+                      className={cn(errCls(has("rate")), "w-[72px]")}
                       value={r.rate_amount ?? ""}
                       onChange={(e) =>
                         updateRow(i, {
@@ -225,21 +349,11 @@ export function ImportStep({
                     />
                   </td>
                   <td className="px-1">
-                    <select
-                      className={cn(cellCls, "w-[80px]")}
-                      value={r.token}
-                      onChange={(e) => updateRow(i, { token: e.target.value as TokenSymbol })}
-                    >
-                      {TOKEN_SYMBOLS.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                    <TokenSelect value={r.token} onChange={(t) => updateRow(i, { token: t })} />
                   </td>
                   <td className="px-1">
                     <select
-                      className={cn(cellCls, "w-[88px]")}
+                      className={cn(errCls(false), "w-[88px]")}
                       value={r.rate_type}
                       onChange={(e) =>
                         updateRow(i, { rate_type: e.target.value as "MONTHLY" | "HOURLY" })
@@ -251,29 +365,16 @@ export function ImportStep({
                   </td>
                   <td className="px-1">
                     <input
-                      className={cn(cellCls, "w-[96px]")}
+                      className={cn(errCls(false), "w-[96px]")}
                       value={r.group_name ?? ""}
                       placeholder="—"
-                      onChange={(e) =>
-                        updateRow(i, { group_name: e.target.value || null })
-                      }
+                      onChange={(e) => updateRow(i, { group_name: e.target.value || null })}
                     />
                   </td>
-                  <td className="px-2 py-2">
-                    {ok ? (
-                      <span className="rounded-md bg-[rgba(196,245,107,0.16)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--sw-mint)]">
-                        Ready
-                      </span>
-                    ) : (
-                      <span
-                        className="rounded-md bg-[rgba(255,120,120,0.14)] px-1.5 py-0.5 text-[11px] font-medium text-[#ff9b9b]"
-                        title={r.errors.join(", ")}
-                      >
-                        {r.errors[0]}
-                      </span>
-                    )}
+                  <td className="whitespace-nowrap px-2 py-2">
+                    <StatusBadge row={r} />
                   </td>
-                  <td className="px-1 py-2">
+                  <td className="py-2 pl-1 pr-3">
                     <button
                       type="button"
                       onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}
@@ -293,5 +394,145 @@ export function ImportStep({
   );
 }
 
-const cellCls =
-  "w-full rounded-lg border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-2 py-1.5 text-[12.5px] text-[var(--sw-text)] outline-none focus:border-[var(--sw-border-strong)]";
+// Token picker that shows a logo + symbol. The menu is portaled so the table's
+// overflow container doesn't clip it.
+function TokenSelect({ value, onChange }: { value: TokenSymbol; onChange: (t: TokenSymbol) => void }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [menu, setMenu] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    document.addEventListener("mousedown", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      document.removeEventListener("mousedown", close);
+    };
+  }, [open]);
+
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setMenu({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 96) });
+    setOpen((o) => !o);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={toggle}
+        className="flex w-[92px] items-center justify-between gap-1 rounded-lg border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-2 py-1.5 text-[12.5px] text-[var(--sw-text)] outline-none transition-colors hover:border-[var(--sw-border-strong)]"
+      >
+        <span className="flex items-center gap-1.5">
+          <TokenIcon token={TOKENS[value]} size={16} />
+          {value}
+        </span>
+        <ChevronDown className="size-3 shrink-0 text-[var(--sw-text-dim)]" />
+      </button>
+      {open &&
+        menu &&
+        createPortal(
+          <div
+            className="fixed z-[60] overflow-hidden rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card)] p-1 shadow-xl"
+            style={{ top: menu.top, left: menu.left, width: menu.width }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {TOKEN_SYMBOLS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => {
+                  onChange(s);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[12.5px] transition-colors hover:bg-[var(--sw-card-inset)]",
+                  s === value ? "text-[var(--sw-mint)]" : "text-[var(--sw-text)]"
+                )}
+              >
+                <TokenIcon token={TOKENS[s]} size={16} />
+                {s}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+    </>
+  );
+}
+
+function StatusBadge({ row }: { row: ParsedEmployee }) {
+  if (row.action === "invalid") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-[rgba(255,120,120,0.14)] px-1.5 py-1 text-[11px] font-medium text-[#ff9b9b]"
+        title={row.errors.join(", ")}
+      >
+        <AlertCircle className="size-3 shrink-0" />
+        {row.errors[0]}
+      </span>
+    );
+  }
+  if (row.action === "update") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-md bg-[rgba(120,170,255,0.16)] px-1.5 py-1 text-[11px] font-medium text-[#8fb8ff]"
+        title="Matches an existing employee, will be updated"
+      >
+        <RefreshCw className="size-3" /> Update
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-[rgba(196,245,107,0.16)] px-1.5 py-1 text-[11px] font-medium text-[var(--sw-mint)]">
+      <CheckCircle2 className="size-3" /> New
+    </span>
+  );
+}
+
+function CountPill({ tone, value, label }: { tone: "mint" | "blue" | "red"; value: number; label: string }) {
+  const cls =
+    tone === "mint"
+      ? "bg-[rgba(196,245,107,0.16)] text-[var(--sw-mint)]"
+      : tone === "blue"
+        ? "bg-[rgba(120,170,255,0.16)] text-[#8fb8ff]"
+        : "bg-[rgba(255,120,120,0.14)] text-[#ff9b9b]";
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", cls)}>
+      <span className="tabular-nums">{value}</span>
+      <span className="font-medium opacity-80">{label}</span>
+    </span>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: number; tone: "mint" | "blue" | "red" | "muted" }) {
+  const color =
+    tone === "mint"
+      ? "text-[var(--sw-mint)]"
+      : tone === "blue"
+        ? "text-[#8fb8ff]"
+        : tone === "red"
+          ? "text-[#ff9b9b]"
+          : "text-[var(--sw-text-muted)]";
+  return (
+    <div className="rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] p-3 text-center">
+      <p className={cn("text-[24px] font-semibold tabular-nums leading-none", color)}>{value}</p>
+      <p className="mt-1 text-[11.5px] text-[var(--sw-text-dim)]">{label}</p>
+    </div>
+  );
+}
+
+const baseCell =
+  "w-full rounded-lg border bg-[var(--sw-card-inset)] px-2 py-1.5 text-[12.5px] text-[var(--sw-text)] outline-none";
+function errCls(invalid: boolean) {
+  return cn(
+    baseCell,
+    invalid ? "border-[#ff6b6b] focus:border-[#ff6b6b]" : "border-[var(--sw-border)] focus:border-[var(--sw-border-strong)]"
+  );
+}

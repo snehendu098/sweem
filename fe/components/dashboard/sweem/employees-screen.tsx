@@ -456,7 +456,7 @@ export function EmployeesScreen() {
         <div className="dashboard-data-table-wrap sweem-tablecard mt-4">
           {rows.length === 0 ? (
             <div className="sweem-gate">
-              {employees.length === 0 ? "No employees yet — add your first team member." : "No employees match these filters."}
+              {employees.length === 0 ? "No employees yet, add your first team member." : "No employees match these filters."}
             </div>
           ) : (
             <table className="sweem-table">

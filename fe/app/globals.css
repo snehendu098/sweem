@@ -2958,8 +2958,8 @@ button.dashboard-screen-action:disabled {
 
 /* Stat tabs / chart tabs */
 .sw-dash .dashboard-stat-card-active {
-  border-color: var(--sw-mint) !important;
-  box-shadow: 0 0 0 1px var(--sw-mint) !important;
+  border-color: var(--sw-border-strong) !important;
+  box-shadow: none !important;
 }
 .sw-dash .dashboard-chart-tab {
   background: var(--sw-card-inset) !important;

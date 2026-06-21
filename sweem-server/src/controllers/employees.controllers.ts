@@ -106,9 +106,10 @@ export async function deleteEmployee(c: Context<AuthEnv>) {
   return c.json({ deleted: true })
 }
 
-// POST /:wallet/employees/bulk — CSV import. Resolves/creates groups by name,
-// inserts each employee (skipping duplicates on (wallet_address, org_wallet)),
-// and attaches rates. Returns a per-row summary.
+// POST /:wallet/employees/bulk — CSV import (UPSERT). Resolves/creates groups by
+// name, inserts new employees, and UPDATES existing ones (matched on
+// (wallet_address, org_wallet)) — refreshing alias/email/group and replacing
+// their rates. Returns a detailed per-outcome report.
 export async function bulkCreateEmployees(c: Context<AuthEnv>) {
   const body = await c.req.json()
   const db = createDb(c.env.DB.connectionString)
@@ -116,11 +117,11 @@ export async function bulkCreateEmployees(c: Context<AuthEnv>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows: any[] = body.employees
 
-  // Resolve group names → ids (create missing). Build a case-insensitive map.
-  const existing = await db.query.paymentGroups.findMany({
+  // Resolve group names → ids (create missing). Case-insensitive map.
+  const existingGroups = await db.query.paymentGroups.findMany({
     where: eq(paymentGroups.orgWallet, orgWallet),
   })
-  const groupIdByName = new Map(existing.map((g) => [g.name.toLowerCase(), g.id]))
+  const groupIdByName = new Map(existingGroups.map((g) => [g.name.toLowerCase(), g.id]))
 
   const wantedNames = [
     ...new Set(
@@ -134,49 +135,67 @@ export async function bulkCreateEmployees(c: Context<AuthEnv>) {
     groupIdByName.set(name.toLowerCase(), g.id)
   }
 
+  // Existing roster, keyed by lowercased wallet, so we know insert vs update.
+  const roster = await db.query.employees.findMany({ where: eq(employees.orgWallet, orgWallet) })
+  const idByWallet = new Map(roster.map((e) => [e.walletAddress.toLowerCase(), e.id]))
+
   let created = 0
-  const skipped: { wallet_address: string; reason: string }[] = []
-  const errors: { wallet_address: string; message: string }[] = []
+  let updated = 0
+  const failed: { wallet_address: string; message: string }[] = []
+
+  const replaceRates = async (employeeId: string, rates: AnyRate[] | undefined) => {
+    await db.delete(employeeTokenRates).where(eq(employeeTokenRates.employeeId, employeeId))
+    if (rates?.length) {
+      await db.insert(employeeTokenRates).values(
+        rates.map((r: AnyRate) => ({
+          employeeId,
+          token: r.token,
+          rateAmount: r.rate_amount != null ? String(r.rate_amount) : null,
+          rateType: r.rate_type ?? null,
+          percentage: r.percentage != null ? String(r.percentage) : null,
+        })),
+      )
+    }
+  }
 
   for (const row of rows) {
     try {
       const groupId =
         row.group_id ??
-        (row.group_name ? groupIdByName.get(String(row.group_name).trim().toLowerCase()) ?? null : null)
+        (row.group_name
+          ? groupIdByName.get(String(row.group_name).trim().toLowerCase()) ?? null
+          : null)
 
-      const inserted = await db
-        .insert(employees)
-        .values({
-          alias: row.alias,
-          walletAddress: row.wallet_address,
-          orgWallet,
-          groupId,
-          email: row.email ?? null,
-        })
-        .onConflictDoNothing({ target: [employees.walletAddress, employees.orgWallet] })
-        .returning()
+      const key = String(row.wallet_address).toLowerCase()
+      const existingId = idByWallet.get(key)
 
-      if (inserted.length === 0) {
-        skipped.push({ wallet_address: row.wallet_address, reason: 'duplicate' })
-        continue
+      if (existingId) {
+        await db
+          .update(employees)
+          .set({ alias: row.alias, email: row.email ?? null, groupId })
+          .where(eq(employees.id, existingId))
+        await replaceRates(existingId, row.rates)
+        updated++
+      } else {
+        const [emp] = await db
+          .insert(employees)
+          .values({
+            alias: row.alias,
+            walletAddress: row.wallet_address,
+            orgWallet,
+            groupId,
+            email: row.email ?? null,
+          })
+          .returning()
+        await replaceRates(emp.id, row.rates)
+        idByWallet.set(key, emp.id) // dedupe repeats within the same request
+        created++
       }
-
-      if (row.rates?.length) {
-        await db.insert(employeeTokenRates).values(
-          row.rates.map((r: AnyRate) => ({
-            employeeId: inserted[0].id,
-            token: r.token,
-            rateAmount: r.rate_amount != null ? String(r.rate_amount) : null,
-            rateType: r.rate_type ?? null,
-            percentage: r.percentage != null ? String(r.percentage) : null,
-          })),
-        )
-      }
-      created++
     } catch (e) {
-      errors.push({ wallet_address: row.wallet_address, message: (e as Error).message })
+      failed.push({ wallet_address: row.wallet_address, message: (e as Error).message })
     }
   }
 
-  return c.json({ created, skipped, errors }, 201)
+  // `skipped` kept for backwards compatibility (always empty now — duplicates update).
+  return c.json({ created, updated, skipped: [], failed }, 201)
 }

@@ -494,7 +494,7 @@ export function PayrollScreen() {
       setNaviAmt("");
       setScallopAmt("");
       await api.yieldsByToken.refetch();
-      toast.success("Pool funded — streams live", { id: t });
+      toast.success("Pool funded, streams live", { id: t });
       setInvestOpen(true);
     } catch (e) {
       toast.error((e as Error).message, { id: t });
@@ -749,7 +749,7 @@ export function PayrollScreen() {
   const roster = employees.filter((e) => monthlyRate(e, symbol) > 0);
   const byEmployee = st.byEmployee;
   const statusByEmployee = st.statusByEmployee;
-  // Funded employees whose on-chain stream row doesn't exist yet — eligible for a
+  // Funded employees whose on-chain stream row doesn't exist yet, eligible for a
   // single bulk "Start all streams".
   const pending = funded ? roster.filter((e) => !statusByEmployee[e.walletAddress]) : [];
 

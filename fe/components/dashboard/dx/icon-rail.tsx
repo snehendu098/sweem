@@ -11,7 +11,7 @@ import { Icon, type IconName } from "../icons";
 
 // Icon-only navigation rail (far left). Each entry maps to a real dashboard
 // route; utility icons (bell/help) are decorative for now. The footer avatar is
-// the wallet control — opens the connect modal when signed out, disconnects when
+// the wallet control, opens the connect modal when signed out, disconnects when
 // signed in. Navigation + wallet wiring is unchanged from the old shell.
 type RailItem = { icon: IconName; label: string; href: string };
 
@@ -76,7 +76,7 @@ export function IconRail() {
           <button
             className="dx-avatar"
             type="button"
-            title={`${account.address.slice(0, 6)}…${account.address.slice(-4)} — click to disconnect`}
+            title={`${account.address.slice(0, 6)}…${account.address.slice(-4)}, click to disconnect`}
             onClick={() => disconnect()}
           >
             {account.address.slice(2, 4).toUpperCase()}

@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { columnVariants, containerVariants } from "./motion";
 
-/** Root dashboard grid — orchestrates the staggered entrance of all columns. */
+/** Root dashboard grid, orchestrates the staggered entrance of all columns. */
 export function DashboardGrid({ children }: { children: React.ReactNode }) {
   return (
     <motion.div

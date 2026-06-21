@@ -7,7 +7,7 @@ export default function DocumentationPage() {
       <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">Documentation</h1>
       <p className="mt-1 text-[13.5px] text-[var(--sw-text-muted)]">
         Accept USDC &amp; SUI payments in your own app with the{" "}
-        <span className="font-medium text-[var(--sw-text)]">@sweem/react</span> SDK — one component, no
+        <span className="font-medium text-[var(--sw-text)]">@sweem/react</span> SDK, one component, no
         Sui setup required.
       </p>
 

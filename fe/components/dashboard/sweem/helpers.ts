@@ -2,7 +2,7 @@ import type { Employee } from "@/lib/api";
 import type { TokenSymbol } from "@/lib/tokens";
 
 // Monthly rate for an employee in a given token (defaults to USDC).
-// NOTE: the backend returns numeric columns as strings — coerce with Number().
+// NOTE: the backend returns numeric columns as strings, coerce with Number().
 export function monthlyRate(e: Employee, token: TokenSymbol = "USDC"): number {
   const r = e.rates.find((x) => x.token === token);
   return r ? Number(r.rateAmount) || 0 : 0;

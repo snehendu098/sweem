@@ -1,7 +1,7 @@
 import {
   DashboardPageShell,
   DataTable,
-  PlainEmpty,
+  EmptyIllustration,
   StatTabs,
 } from "@/components/dashboard/dashboard-screen";
 
@@ -29,8 +29,14 @@ export default function ProductsPage() {
         ]}
       />
       <DataTable
+        shaded
         columns={columns}
-        empty={<PlainEmpty>No results found</PlainEmpty>}
+        empty={
+          <EmptyIllustration
+            title="No products yet"
+            description="Please try changing filters. Otherwise, create a product to start accepting payments."
+          />
+        }
       />
     </DashboardPageShell>
   );

@@ -86,7 +86,7 @@ export default function InvoicesScreen() {
     }
   }
 
-  // Pay the employee on-chain, then submit the digest — backend verifies it.
+  // Pay the employee on-chain, then submit the digest, backend verifies it.
   async function payInvoice(inv: Invoice) {
     if (!wallet) return;
     const token = tokenBySymbol(inv.token);

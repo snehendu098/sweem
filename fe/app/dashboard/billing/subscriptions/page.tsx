@@ -1,7 +1,7 @@
 import {
   DashboardPageShell,
   DataTable,
-  PlainEmpty,
+  EmptyIllustration,
   StatTabs,
 } from "@/components/dashboard/dashboard-screen";
 
@@ -29,8 +29,14 @@ export default function SubscriptionsPage() {
         ]}
       />
       <DataTable
+        shaded
         columns={columns}
-        empty={<PlainEmpty>No results found</PlainEmpty>}
+        empty={
+          <EmptyIllustration
+            title="No active subscriptions found"
+            description="Please try changing filters. Otherwise, subscriptions will appear here once customers sign up."
+          />
+        }
       />
     </DashboardPageShell>
   );

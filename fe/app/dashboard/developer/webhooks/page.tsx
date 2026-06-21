@@ -80,7 +80,7 @@ export async function POST(req) {
   });
 
   if (event.type === "payment.succeeded") {
-    // fulfil the order — event.data has { digest, amount, token, payer }
+    // fulfil the order, event.data has { digest, amount, token, payer }
   }
   return Response.json({ received: true });
 }`;

@@ -137,8 +137,9 @@ export interface BulkEmployeeInput {
 
 export interface BulkResult {
   created: number
+  updated: number
   skipped: { wallet_address: string; reason: string }[]
-  errors: { wallet_address: string; message: string }[]
+  failed: { wallet_address: string; message: string }[]
 }
 
 export interface StartEmailResult {
@@ -270,6 +271,10 @@ export function useSweemApi() {
     ensureOrg: (name: string) => authedFetch('/v1/orgs', 'POST', { name }),
 
     getOrg: (w: string) => get<Org>(`/v1/orgs/${w}`),
+
+    // Update org profile (name and/or logo). Wallet-signed.
+    updateOrg: (input: { name?: string; logo_url?: string }) =>
+      authedFetch(`/v1/orgs/${wallet}`, 'PUT', input),
 
     createGroup: (w: string, name: string) =>
       authedFetch(`/v1/orgs/${w}/groups`, 'POST', { name }),

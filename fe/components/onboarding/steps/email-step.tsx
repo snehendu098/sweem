@@ -37,7 +37,7 @@ export function EmailStep({
         setCode(res.code);
         toast.message("Dev mode", { description: `Your code is ${res.code}` });
       } else if (res.sent) {
-        toast.success("Code sent — check your inbox");
+        toast.success("Code sent, check your inbox");
       } else {
         toast.warning("Couldn't send the email, but you can retry");
       }
@@ -107,7 +107,7 @@ export function EmailStep({
           We sent a 6-digit code to <span className="text-[var(--sw-text)]">{email}</span>.
           {devCode && (
             <span className="mt-1 block text-[12px] text-[var(--sw-mint)]">
-              Dev mode — code is {devCode}
+              Dev mode, code is {devCode}
             </span>
           )}
         </>

@@ -10,7 +10,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 
-// Payroll cycle volumes (placeholder) — submitted vs approved per recent cycle.
+// Payroll cycle volumes (placeholder), submitted vs approved per recent cycle.
 const data = [
   { cycle: "Aug", submitted: 320, approved: 280 },
   { cycle: "Sep", submitted: 410, approved: 360 },

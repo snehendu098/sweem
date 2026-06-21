@@ -6,7 +6,7 @@ import { WalletButton } from "@/components/dashboard/wallet-button";
 
 // Minimal full-screen chrome for the onboarding wizard. Scopes the `.sw-dash`
 // theme (so --sw-* tokens resolve) + ambient glow, a slim header (brand, back-to
-// -site, wallet), and a centered content column. No org sidebar — it's escapable.
+// -site, wallet), and a centered content column. No org sidebar, it's escapable.
 export function OnboardingChrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="sw-dash relative flex min-h-screen w-full flex-col bg-[var(--sw-bg)] text-[var(--sw-text)]">
@@ -31,8 +31,8 @@ export function OnboardingChrome({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="relative z-10 flex flex-1 items-start justify-center px-4 py-8 sm:py-12">
-        <div className="w-full max-w-2xl">{children}</div>
+      <main className="relative z-10 flex flex-1 items-start justify-center px-4 py-8 sm:px-6 sm:py-12 lg:px-10">
+        <div className="w-full">{children}</div>
       </main>
     </div>
   );

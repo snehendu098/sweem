@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { Check, Copy, Eye, EyeOff, KeyRound, Plus, Trash2, X } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, Trash2, X } from "lucide-react";
+import { isValidSuiAddress } from "@mysten/sui/utils";
 import { cn } from "@/lib/utils";
 import { useSweemApi, type ApiKeyRow } from "@/lib/api";
 
@@ -45,10 +46,10 @@ import { SweemPayButton } from "@sweem/react";
     }
   };
 
-  const create = async (projectName: string) => {
+  const create = async (projectName: string, receivingAddress?: string) => {
     setBusy(true);
     try {
-      const { data } = await api.createApiKey(projectName.trim());
+      const { data } = await api.createApiKey(projectName.trim(), receivingAddress);
       if (data) setJustCreated(data as ApiKeyRow);
       await api.apiKeysQuery.refetch();
       setCreateOpen(false);
@@ -90,8 +91,7 @@ import { SweemPayButton } from "@sweem/react";
           <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">API keys</h1>
           <p className="mt-1 text-[13.5px] text-[var(--sw-text-muted)]">
             Publishable keys for the{" "}
-            <span className="font-medium text-[var(--sw-text)]">@sweem/react</span> SDK. Safe to ship
-            in client code — they only identify your receiving wallet.
+            <span className="font-medium text-[var(--sw-text)]">@sweem/react</span> SDK.
           </p>
         </div>
         {keys.length > 0 && (
@@ -113,7 +113,7 @@ import { SweemPayButton } from "@sweem/react";
             “{justCreated.name}” key created
           </p>
           <p className="mt-0.5 text-[12px] text-[var(--sw-text-muted)]">
-            Copy it now and store it safely — you can always view it again here.
+            Copy it now and store it safely, you can always view it again here.
           </p>
           <div className="mt-3 flex items-center gap-2 rounded-xl border border-[var(--sw-border)] bg-[#1b1b1f] px-3 py-2.5">
             <code className="flex-1 truncate font-mono text-[13px] text-[var(--sw-text)]">{justCreated.key}</code>
@@ -320,7 +320,7 @@ function CreateKeyModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, receivingAddress?: string) => void;
   existingNames: string[];
   pending?: boolean;
   receivingWallet?: string;
@@ -328,11 +328,15 @@ function CreateKeyModal({
   const [mounted, setMounted] = useState(false);
   const [name, setName] = useState("");
   const [touched, setTouched] = useState(false);
+  const [editAddr, setEditAddr] = useState(false);
+  const [addr, setAddr] = useState("");
   useEffect(() => setMounted(true), []);
   useEffect(() => {
     if (open) {
       setName("");
       setTouched(false);
+      setEditAddr(false);
+      setAddr("");
     }
   }, [open]);
 
@@ -352,13 +356,19 @@ function CreateKeyModal({
             : existingNames.includes(trimmed.toLowerCase())
               ? "A key with this name already exists"
               : null;
-  const valid = !error;
+
+  const addrTrim = addr.trim();
+  const addrError = addrTrim && !isValidSuiAddress(addrTrim) ? "Invalid Sui address" : null;
+  const effectiveAddr = addrTrim || receivingWallet || "";
+  const isCustom = !!addrTrim && addrTrim.toLowerCase() !== (receivingWallet ?? "").toLowerCase();
+
+  const valid = !error && !addrError;
   const submit = () => {
     if (!valid) {
       setTouched(true);
       return;
     }
-    onCreate(trimmed);
+    onCreate(trimmed, isCustom ? addrTrim : undefined);
   };
 
   return createPortal(
@@ -405,15 +415,62 @@ function CreateKeyModal({
           )}
         </p>
 
-        {/* Payments settle to the connected account. */}
+        {/* Payments settle to the connected account, or a custom address. */}
         <div className="mt-4 rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-3.5 py-3">
-          <p className="text-[11.5px] font-medium text-[var(--sw-text-muted)]">Payments received at</p>
-          <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[13px] text-[var(--sw-text)]">
-            {receivingWallet ? shortAddr(receivingWallet) : "Connect a wallet"}
-            <span className="rounded-md bg-[var(--sw-card)] px-1.5 py-0.5 font-sans text-[10px] font-medium text-[var(--sw-text-dim)]">
-              This account
-            </span>
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-[11.5px] font-medium text-[var(--sw-text-muted)]">Payments received at</p>
+            {!editAddr && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAddr(addrTrim || receivingWallet || "");
+                  setEditAddr(true);
+                }}
+                title="Edit receiving address"
+                className="flex size-6 items-center justify-center rounded-md text-[var(--sw-text-dim)] transition-colors hover:bg-[var(--sw-card)] hover:text-[var(--sw-text)]"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+            )}
+          </div>
+          {editAddr ? (
+            <>
+              <input
+                autoFocus
+                value={addr}
+                onChange={(e) => setAddr(e.target.value)}
+                placeholder={receivingWallet || "0x… receiving address"}
+                className={cn(
+                  "mt-2 h-10 w-full rounded-lg border bg-[#1b1b1f] px-3 font-mono text-[12.5px] text-[var(--sw-text)] outline-none transition-colors placeholder:text-[var(--sw-text-dim)]",
+                  addrError ? "border-[#ef4444]" : "border-[var(--sw-border)] focus:border-[var(--sw-border-strong)]"
+                )}
+              />
+              <div className="mt-1.5 flex items-center justify-between text-[11px]">
+                {addrError ? (
+                  <span className="text-[#ef4444]">{addrError}</span>
+                ) : (
+                  <span className="text-[var(--sw-text-dim)]">Leave blank to use this account</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddr("");
+                    setEditAddr(false);
+                  }}
+                  className="text-[var(--sw-text-muted)] hover:text-[var(--sw-text)]"
+                >
+                  Reset
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[13px] text-[var(--sw-text)]">
+              {effectiveAddr ? shortAddr(effectiveAddr) : "Connect a wallet"}
+              <span className="rounded-md bg-[var(--sw-card)] px-1.5 py-0.5 font-sans text-[10px] font-medium text-[var(--sw-text-dim)]">
+                {isCustom ? "Custom" : "This account"}
+              </span>
+            </p>
+          )}
         </div>
 
         <div className="mt-5 flex gap-3">

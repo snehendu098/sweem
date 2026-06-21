@@ -510,7 +510,7 @@ function EditEmployeeCard({ result, onConfirm }: { result: Extract<PendingAction
           </div>
         </div>
 
-        {/* Group — from org's actual groups */}
+        {/* Group, from org's actual groups */}
         <div>
           <label className={labelCls}>Group / department</label>
           <Select value={groupId} onValueChange={setGroupId}>

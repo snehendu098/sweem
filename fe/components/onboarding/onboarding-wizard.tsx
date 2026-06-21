@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 import { useSweemApi } from "@/lib/api";
 import { Stepper, type StepKey } from "./stepper";
 import { ConnectStep } from "./steps/connect-step";
@@ -28,7 +29,9 @@ export function OnboardingWizard() {
 
   return (
     <div>
-      <Stepper current={step} />
+      <div className="mx-auto max-w-2xl">
+        <Stepper current={step} />
+      </div>
       <AnimatePresence mode="wait">
         <motion.div
           key={step}
@@ -36,6 +39,7 @@ export function OnboardingWizard() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
+          className={cn("mx-auto", step === "import" ? "max-w-4xl" : "max-w-2xl")}
         >
           {step === "connect" && (
             <ConnectStep api={api} wallet={wallet} onNext={() => setStep("import")} />

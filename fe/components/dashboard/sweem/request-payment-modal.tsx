@@ -27,12 +27,20 @@ export function PayModal({
   merchant = "Sweem",
   amount = 480,
   onPay,
+  align = "center",
+  backdrop = true,
+  inline = false,
 }: {
   open: boolean;
   onClose: () => void;
   merchant?: string;
   amount?: number;
   onPay?: (data: { amount: number; token: TokenSymbol; total: number }) => void;
+  align?: "center" | "right";
+  backdrop?: boolean;
+  // Render in normal flow (no fixed full-viewport overlay / portal). Used for the
+  // dashboard preview so the card centers within the content area.
+  inline?: boolean;
 }) {
   const [token, setToken] = useState<TokenSymbol>("USDC");
   const [mounted, setMounted] = useState(false);
@@ -59,16 +67,27 @@ export function PayModal({
 
   if (!mounted) return null;
 
-  return createPortal(
+  const tree = (
     <AnimatePresence>
       {open && (
         <motion.div
-          className="sw-dash fixed inset-0 z-50 flex items-center justify-center p-4 text-[var(--sw-text)]"
+          className={cn(
+            "sw-dash flex text-[var(--sw-text)]",
+            inline
+              ? "min-h-[calc(100vh-60px)] w-full items-center justify-center p-4"
+              : cn(
+                  "fixed inset-0 z-50 p-4",
+                  align === "right" ? "items-center justify-center md:pl-[50%]" : "items-center justify-center",
+                  !backdrop && "pointer-events-none"
+                )
+          )}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          {!inline && backdrop && (
+            <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          )}
 
           <motion.div
             role="dialog"
@@ -77,7 +96,7 @@ export function PayModal({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 240, damping: 26 }}
-            className="relative z-10 w-full max-w-[420px] overflow-hidden rounded-[24px] border border-[var(--sw-border)] bg-[var(--sw-card)] shadow-[0_40px_100px_-30px_rgba(0,0,0,0.85)]"
+            className="pointer-events-auto relative z-10 w-full max-w-[420px] overflow-hidden rounded-[24px] border border-[var(--sw-border)] bg-[var(--sw-card)] shadow-[0_40px_100px_-30px_rgba(0,0,0,0.85)]"
           >
             {status === "success" ? (
               <div className="flex flex-col items-center px-6 py-10 text-center">
@@ -224,7 +243,8 @@ export function PayModal({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>,
-    document.body,
+    </AnimatePresence>
   );
+
+  return inline ? tree : createPortal(tree, document.body);
 }

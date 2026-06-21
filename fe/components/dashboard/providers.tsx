@@ -20,10 +20,10 @@ const { networkConfig } = createNetworkConfig({
 
 // RPC network is driven by NEXT_PUBLIC_NETWORK (default mainnet). `||` (not `??`)
 // so an empty value also falls back. NOTE: the Sweem package/object IDs in
-// lib/sweem.ts are mainnet-deployed — keep this mainnet unless you repoint them.
+// lib/sweem.ts are mainnet-deployed, keep this mainnet unless you repoint them.
 const DEFAULT_NETWORK = (process.env.NEXT_PUBLIC_NETWORK || "mainnet") as SuiNetwork;
 
-// Scopes the Sui wallet + react-query context to the dashboard only — the
+// Scopes the Sui wallet + react-query context to the dashboard only, the
 // marketing site under `/` stays a plain presentational tree.
 export function DashboardProviders({ children }: { children: React.ReactNode }) {
   // One QueryClient per browser session (avoid re-creating across renders).

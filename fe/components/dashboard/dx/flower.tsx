@@ -1,6 +1,6 @@
 // Pure-SVG recreation of the 3D orange "flower" mascot from the reference design.
 // Petals are radial blobs around a soft center; two white rounded bars form the
-// eyes. No image file — renders crisp at any size via the `size` prop.
+// eyes. No image file, renders crisp at any size via the `size` prop.
 export function Flower({ size = 130 }: { size?: number }) {
   const petals = Array.from({ length: 8 }, (_, i) => (i * 360) / 8);
   return (
@@ -37,7 +37,7 @@ export function Flower({ size = 130 }: { size?: number }) {
           />
         ))}
         <circle r="50" fill="url(#dxCenter)" />
-        {/* eyes — two rounded vertical bars */}
+        {/* eyes, two rounded vertical bars */}
         <rect x="-20" y="-20" width="11" height="40" rx="5.5" fill="#fff" opacity="0.95" />
         <rect x="9" y="-20" width="11" height="40" rx="5.5" fill="#fff" opacity="0.95" />
       </g>
