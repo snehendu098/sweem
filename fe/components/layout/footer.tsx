@@ -23,7 +23,7 @@ const links = [
   },
 ];
 
-const socials = [{ label: "X", Icon: XIcon }];
+const socials = [{ label: "X", Icon: XIcon, href: "https://x.com/sweemfinance" }];
 
 export function Footer() {
   return (
@@ -44,23 +44,15 @@ export function Footer() {
           </p>
         </div>
 
-        {/* right: 2×2 contact grid */}
+        {/* right: contact grid */}
         <div className="grid grid-cols-2 gap-x-8 gap-y-8 pt-2">
           <div>
             <h4 className="text-[14px] font-semibold text-[#101828]">Location</h4>
-            <p className="mt-2 text-[14px] leading-[1.7] text-[#667085]">Built on Sui,<br />Onchain &amp; Worldwide</p>
-          </div>
-          <div>
-            <h4 className="text-[14px] font-semibold text-[#101828]">Call Us</h4>
-            <p className="mt-2 text-[14px] text-[#667085]">+1 (800) 456-7890</p>
+            <p className="mt-2 text-[14px] leading-[1.7] text-[#667085]">Built on Sui</p>
           </div>
           <div>
             <h4 className="text-[14px] font-semibold text-[#101828]">Email</h4>
-            <p className="mt-2 text-[14px] text-[#667085]">hello@sweem.xyz</p>
-          </div>
-          <div>
-            <h4 className="text-[14px] font-semibold text-[#101828]">Working Hours</h4>
-            <p className="mt-2 text-[14px] leading-[1.7] text-[#667085]">Mon – Fri: 9:00 AM – 6:00 PM<br />(GMT)</p>
+            <a href="mailto:support.sweem@gmail.com" className="mt-2 block text-[14px] leading-[1.7] text-[#667085] hover:text-[#101828]">support.sweem@gmail.com</a>
           </div>
         </div>
       </div>
@@ -84,10 +76,12 @@ export function Footer() {
         <div>
           <h4 className="text-[13px] font-semibold text-[#101828]">Social Media</h4>
           <div className="mt-4 flex items-center gap-3">
-            {socials.map(({ label, Icon }) => (
+            {socials.map(({ label, Icon, href }) => (
               <a
                 key={label}
-                href="#"
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label={label}
                 className="grid size-9 place-items-center rounded-[9px] text-[#101828] transition-colors hover:text-[#475467]"
               >

@@ -82,6 +82,13 @@ export function ConnectStep({
           autoFocus
         />
       </Field>
+      <button
+        type="button"
+        onClick={() => setName("Sweem Demo Co")}
+        className="mt-2.5 text-[12px] font-medium text-[var(--sw-mint)] transition-opacity hover:opacity-80"
+      >
+        Just exploring? Use a demo organization
+      </button>
     </Card>
   );
 }

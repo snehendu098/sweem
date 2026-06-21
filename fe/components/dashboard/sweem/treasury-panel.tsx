@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { toast } from "sonner";
-import { Loader2, TrendingUp } from "lucide-react";
+import { Check, ChevronDown, Loader2, TrendingUp } from "lucide-react";
 import { TokenTabs } from "./token-tabs";
 import { TokenIcon } from "@/components/sweem-ui/token-icon";
 import { ProtocolLogo } from "@/components/sweem-ui/protocol-logo";
@@ -29,6 +29,19 @@ interface Positions {
   scallop: number;
 }
 
+// Protocols we can route into today (deployed adapters) vs. coming soon (logos shown
+// for completeness but not yet selectable).
+const LIVE_PROTOCOLS: { id: YieldProtocol; label: string }[] = [
+  { id: "navi", label: "Navi" },
+  { id: "scallop", label: "Scallop" },
+];
+const protoLabel = (p: YieldProtocol) => (p === "navi" ? "Navi" : "Scallop");
+const SOON_PROTOCOLS: { label: string; logo: string }[] = [
+  { label: "Suilend", logo: "https://unavatar.io/suilend.fi" },
+  { label: "Ondo", logo: "https://unavatar.io/ondo.finance" },
+  { label: "AlphaFi", logo: "https://unavatar.io/alphafi.xyz" },
+];
+
 export function TreasuryPanel() {
   const account = useCurrentAccount();
   const wallet = account?.address;
@@ -46,9 +59,24 @@ export function TreasuryPanel() {
   const [busy, setBusy] = useState(false);
 
   const [amount, setAmount] = useState("");
-  const [protocol, setProtocol] = useState<YieldProtocol>("navi");
+  const [protocols, setProtocols] = useState<YieldProtocol[]>(["navi"]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const [auto, setAuto] = useState(false);
   const autoRef = useRef(-1); // last wallet balance we auto-invested, prevents loops
+
+  const toggleProtocol = (p: YieldProtocol) =>
+    setProtocols((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
+
+  // Close the protocol dropdown on outside click.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [pickerOpen]);
 
   // Persist the auto-invest preference per token.
   useEffect(() => {
@@ -120,8 +148,20 @@ export function TreasuryPanel() {
         if (!isAuto) toast.error("Amount exceeds wallet balance");
         return;
       }
-      if (protocol === "navi" && amt < token.navi.minInvest) {
-        if (!isAuto) toast.error(`Navi requires at least ${token.navi.minInvest} ${symbol}`);
+      const sel = protocols;
+      if (sel.length === 0) {
+        if (!isAuto) toast.error("Select at least one protocol");
+        return;
+      }
+      // Split the deposit evenly across the selected protocols.
+      const share = amt / sel.length;
+      if (sel.includes("navi") && share < token.navi.minInvest) {
+        if (!isAuto)
+          toast.error(
+            sel.length > 1
+              ? `Each Navi split needs ${token.navi.minInvest} ${symbol} (deposit at least ${token.navi.minInvest * sel.length})`
+              : `Navi requires at least ${token.navi.minInvest} ${symbol}`
+          );
         return;
       }
 
@@ -129,20 +169,22 @@ export function TreasuryPanel() {
       const t = toast.loading(isAuto ? "Auto-investing received funds…" : "Preparing…");
       try {
         const vid = await ensureVault();
-        const needsBucket = !(await vaultHasBucket(client, vid, token));
-        const needsNaviCap = protocol === "navi" && !(await vaultHasNaviCap(client, vid, token));
-        toast.loading(`Depositing into ${protocol === "navi" ? "Navi" : "Scallop"}…`, { id: t });
-        const res = await signAndExecute({
-          transaction: treasuryInvestTx({
-            vaultId: vid,
-            token,
-            protocol,
-            amountRaw: toRaw(token, amt),
-            needsBucket,
-            needsNaviCap,
-          }),
-        });
-        await client.waitForTransaction({ digest: res.digest });
+        for (const p of sel) {
+          const needsBucket = !(await vaultHasBucket(client, vid, token));
+          const needsNaviCap = p === "navi" && !(await vaultHasNaviCap(client, vid, token));
+          toast.loading(`Depositing into ${protoLabel(p)}…`, { id: t });
+          const res = await signAndExecute({
+            transaction: treasuryInvestTx({
+              vaultId: vid,
+              token,
+              protocol: p,
+              amountRaw: toRaw(token, share),
+              needsBucket,
+              needsNaviCap,
+            }),
+          });
+          await client.waitForTransaction({ digest: res.digest });
+        }
         toast.success(`Earning yield on ${amt} ${symbol}`, { id: t });
         setAmount("");
         await refresh();
@@ -153,7 +195,7 @@ export function TreasuryPanel() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [wallet, walletBal, protocol, token, symbol, client]
+    [wallet, walletBal, protocols, token, symbol, client]
   );
 
   const deposit = () => doDeposit(Number(amount));
@@ -161,13 +203,13 @@ export function TreasuryPanel() {
   // Auto-invest: when enabled, sweep newly received wallet funds into the chosen
   // protocol once per balance change (each sweep still asks the wallet to sign).
   useEffect(() => {
-    if (!auto || busy || loading || !wallet) return;
-    const min = protocol === "navi" ? token.navi.minInvest : 0.000001;
+    if (!auto || busy || loading || !wallet || protocols.length === 0) return;
+    const min = protocols.includes("navi") ? token.navi.minInvest * protocols.length : 0.000001;
     if (walletBal < min) return;
     if (autoRef.current === walletBal) return; // already handled this balance
     autoRef.current = walletBal;
     doDeposit(walletBal, true);
-  }, [auto, busy, loading, wallet, walletBal, protocol, token, doDeposit]);
+  }, [auto, busy, loading, wallet, walletBal, protocols, token, doDeposit]);
 
   const withdrawProtocol = async (p: YieldProtocol) => {
     if (!vaultId) return;
@@ -259,7 +301,8 @@ export function TreasuryPanel() {
         </div>
         {auto && (
           <p className="mt-1.5 text-[11.5px] text-[var(--sw-text-dim)]">
-            New {symbol} received at your wallet is swept into {protocol === "navi" ? "Navi" : "Scallop"} automatically (each sweep asks you to sign).
+            New {symbol} received at your wallet is swept into{" "}
+            {protocols.map(protoLabel).join(" & ") || "the selected protocol"} automatically (each sweep asks you to sign).
           </p>
         )}
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -283,23 +326,78 @@ export function TreasuryPanel() {
               {symbol}
             </span>
           </div>
-          <div className="flex gap-2">
-            {(["navi", "scallop"] as YieldProtocol[]).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setProtocol(p)}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-colors",
-                  protocol === p
-                    ? "border-[var(--sw-border-strong)] bg-[var(--sw-card)] text-[var(--sw-text)]"
-                    : "border-[var(--sw-border)] text-[var(--sw-text-muted)] hover:text-[var(--sw-text)]"
-                )}
-              >
-                <ProtocolLogo name={p} size={18} />
-                {p === "navi" ? "Navi" : "Scallop"}
-              </button>
-            ))}
+          {/* protocol selector — multi-select dropdown */}
+          <div className="relative sm:w-[200px]" ref={pickerRef}>
+            <button
+              type="button"
+              onClick={() => setPickerOpen((o) => !o)}
+              className="flex w-full items-center gap-2 rounded-xl border border-[var(--sw-border)] bg-[#1b1b1f] px-3 py-2.5 text-[13px] font-medium text-[var(--sw-text)] transition-colors hover:border-[var(--sw-border-strong)]"
+            >
+              {protocols.length > 0 ? (
+                <span className="flex -space-x-1.5">
+                  {protocols.map((p) => (
+                    <ProtocolLogo key={p} name={p} size={18} className="ring-2 ring-[#1b1b1f]" />
+                  ))}
+                </span>
+              ) : null}
+              <span className="flex-1 truncate text-left">
+                {protocols.length === 0
+                  ? "Select protocol"
+                  : protocols.map(protoLabel).join(", ")}
+              </span>
+              <ChevronDown
+                className={cn("size-4 shrink-0 text-[var(--sw-text-muted)] transition-transform", pickerOpen && "rotate-180")}
+              />
+            </button>
+
+            {pickerOpen && (
+              <div className="absolute bottom-full right-0 z-20 mb-1.5 w-full min-w-[200px] rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card)] p-1.5 shadow-[0_-12px_32px_rgba(0,0,0,0.5)]">
+                {LIVE_PROTOCOLS.map(({ id, label }) => {
+                  const checked = protocols.includes(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => toggleProtocol(id)}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-[13px] transition-colors hover:bg-[var(--sw-card-inset)]"
+                    >
+                      <ProtocolLogo name={id} size={18} />
+                      <span className="flex-1 text-left text-[var(--sw-text)]">{label}</span>
+                      <span
+                        className={cn(
+                          "grid size-4 shrink-0 place-items-center rounded-[5px] border transition-colors",
+                          checked ? "border-[var(--sw-mint)] bg-[var(--sw-mint)]" : "border-[var(--sw-border-strong)]"
+                        )}
+                      >
+                        {checked && <Check className="size-3 text-black" strokeWidth={3} />}
+                      </span>
+                    </button>
+                  );
+                })}
+                <div className="my-1 h-px bg-[var(--sw-border)]" />
+                {SOON_PROTOCOLS.map(({ label, logo }) => (
+                  <div
+                    key={label}
+                    title={`${label} — coming soon`}
+                    className="flex w-full cursor-not-allowed items-center gap-2.5 rounded-lg px-2 py-2 text-[13px] opacity-50"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={logo}
+                      alt=""
+                      className={cn(
+                        "size-[18px] shrink-0 rounded-full object-cover",
+                        logo.includes("ondo") ? "[filter:brightness(0)_invert(1)]" : "bg-white"
+                      )}
+                    />
+                    <span className="flex-1 text-left text-[var(--sw-text-dim)]">{label}</span>
+                    <span className="rounded bg-[var(--sw-card-inset)] px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide text-[var(--sw-text-muted)]">
+                      Soon
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <button
             type="button"

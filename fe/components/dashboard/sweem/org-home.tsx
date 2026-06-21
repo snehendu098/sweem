@@ -286,7 +286,7 @@ function CompositionCard({
           />
         ))}
       </div>
-      <ul className="mt-5 flex flex-1 flex-col justify-between gap-3">
+      <ul className="mt-5 flex flex-col gap-3.5">
         {COMPOSITION.map((seg) => (
           <li key={seg.key} className="flex items-center justify-between">
             <span className="flex items-center gap-2.5">

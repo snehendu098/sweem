@@ -1,6 +1,5 @@
 import { Reveal } from "@/components/motion/reveal";
 import { Section } from "@/components/layout/section";
-import { ImpactChart } from "@/components/stats/impact-chart";
 
 function CheckIcon() {
   return (
@@ -32,7 +31,12 @@ export function StatsSection() {
       <div className="flex flex-col gap-10 lg:flex-row lg:items-center lg:gap-16">
         {/* left — live growth visual */}
         <Reveal className="w-full lg:w-[380px] lg:shrink-0">
-          <ImpactChart />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/sweem-banner1.png"
+            alt="Idle cash earning yield across Sui lending protocols"
+            className="w-full rounded-[20px] object-contain"
+          />
         </Reveal>
 
         {/* right */}
