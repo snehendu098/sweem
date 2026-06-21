@@ -12,14 +12,14 @@ function ClockIcon() {
   );
 }
 
-function MazeLogo() {
+function HypertronLogo() {
   return (
     <div className="flex items-center gap-1.5 text-[13px] font-semibold text-text-primary">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
         <path d="M3 7c3-4 6 4 9 0s6-4 9 0" strokeLinecap="round" />
         <path d="M3 14c3-4 6 4 9 0s6-4 9 0" strokeLinecap="round" />
       </svg>
-      maze
+      hypertron_HQ
     </div>
   );
 }
@@ -70,7 +70,7 @@ export function TestimonialsSection() {
           <>
             Trusted Worldwide by
             <br />
-            Growing Businesses
+            30+ Growing Businesses
           </>
         }
         description="Real stories from teams streaming payroll onchain with Sweem."
@@ -84,7 +84,7 @@ export function TestimonialsSection() {
         <Reveal delay={0.06}>
           <TestimonialCard
             type="quote"
-            logo={<MazeLogo />}
+            logo={<HypertronLogo />}
             quote='"Monthly payroll runs are gone. Our team gets paid by the second and can claim whenever they need it."'
             name="hypertron_HQ"
             role="@hypertron_HQ"
