@@ -335,7 +335,7 @@ function StreamCard({
     <div className="sweem-card sweem-flow-card">
       <div className="sweem-card-head">
         <div>
-          <p className="sweem-card-title">{orgName ?? shortAddr(org)}</p>
+          <p className="sweem-card-title">{orgName ?? `Unnamed org · ${shortAddr(org)}`}</p>
           <p className="sweem-card-sub">Pool {shortAddr(poolId)}</p>
         </div>
         <span className="flex items-center gap-2">
