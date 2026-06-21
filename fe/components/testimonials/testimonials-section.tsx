@@ -12,50 +12,38 @@ function ClockIcon() {
   );
 }
 
-function HypertronLogo() {
+function WisdomAiLogo() {
   return (
     <div className="flex items-center gap-1.5 text-[13px] font-semibold text-text-primary">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-        <path d="M3 7c3-4 6 4 9 0s6-4 9 0" strokeLinecap="round" />
-        <path d="M3 14c3-4 6 4 9 0s6-4 9 0" strokeLinecap="round" />
-      </svg>
-      hypertron_HQ
+      WisdomAI
     </div>
   );
 }
 
-function AsanaLogo() {
+function HandleLogo({ handle }: { handle: string }) {
   return (
     <div className="flex items-center gap-1.5 text-[13px] font-semibold text-text-primary">
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
-        <circle cx="12" cy="8" r="4" fill="#f06a6a" />
-        <circle cx="5" cy="17" r="3.5" fill="#f06a6a" />
-        <circle cx="19" cy="17" r="3.5" fill="#f06a6a" />
-      </svg>
-      asana
+      <img
+        src={`https://unavatar.io/twitter/${handle}`}
+        alt={handle}
+        width={18}
+        height={18}
+        className="h-[18px] w-[18px] rounded-full object-cover"
+      />
+      {handle}
     </div>
   );
 }
 
-function MonzoLogo() {
+function EduhubLogo() {
   return (
     <div className="flex items-center gap-1.5 text-[13px] font-semibold text-text-primary">
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
-        <path d="M4 18V6l4 6 4-6 4 6 4-6v12" fill="none" stroke="#f4511e" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#101828" strokeWidth="2" aria-hidden>
+        <path d="M3 8l9-4 9 4-9 4-9-4z" strokeLinejoin="round" />
+        <path d="M7 10.5V15c0 1.1 2.2 2 5 2s5-.9 5-2v-4.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M21 8v4" strokeLinecap="round" />
       </svg>
-      monzo
-    </div>
-  );
-}
-
-function SquareLogo() {
-  return (
-    <div className="flex items-center gap-1.5 text-[13px] font-semibold text-text-primary">
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
-        <rect x="3" y="3" width="18" height="18" rx="3" fill="none" stroke="#101828" strokeWidth="2" />
-        <rect x="7" y="7" width="10" height="10" rx="1.5" fill="#101828" />
-      </svg>
-      Square
+      Eduhub
     </div>
   );
 }
@@ -79,23 +67,22 @@ export function TestimonialsSection() {
       {/* row 1 */}
       <div className="grid items-stretch gap-4 md:grid-cols-3">
         <Reveal>
-          <TestimonialCard type="image" brand="Eightball" bg="linear-gradient(160deg,#c8dff0,#e8f4fc)" />
+          <TestimonialCard type="image" image="/ceo.png" bg="linear-gradient(160deg,#c8dff0,#e8f4fc)" />
         </Reveal>
         <Reveal delay={0.06}>
           <TestimonialCard
             type="quote"
-            logo={<HypertronLogo />}
+            logo={<WisdomAiLogo />}
             quote='"Monthly payroll runs are gone. Our team gets paid by the second and can claim whenever they need it."'
-            name="hypertron_HQ"
-            role="@hypertron_HQ"
-            avatar="https://unavatar.io/twitter/hypertron_HQ"
-            href="https://x.com/hypertron_HQ"
+            name="Prantik Bala"
+            role="Wisdom Ai"
+            avatar="/prantik.jpeg"
           />
         </Reveal>
         <Reveal delay={0.1}>
           <TestimonialCard
             type="quote"
-            logo={<AsanaLogo />}
+            logo={<HandleLogo handle="KimiaProtocol" />}
             quote='"Idle payroll used to just sit there. Now it earns yield until the moment an employee claims."'
             name="KimiaProtocol"
             role="@KimiaProtocol"
@@ -111,7 +98,7 @@ export function TestimonialsSection() {
         <Reveal>
           <TestimonialCard
             type="quote"
-            logo={<MonzoLogo />}
+            logo={<HandleLogo handle="DikeProtocol" />}
             quote='"We can see our exact runway in real time. Pausing or adjusting a single stream takes one click."'
             name="DikeProtocol"
             role="@DikeProtocol"
@@ -123,16 +110,16 @@ export function TestimonialsSection() {
         <Reveal delay={0.06}>
           <TestimonialCard
             type="quote"
-            logo={<SquareLogo />}
+            logo={<EduhubLogo />}
             quote='"Non-custodial, onchain, and instant. Sweem gave us confidence to run global payroll."'
-            name="SahityaRoy07"
+            name="Sahitya Roy"
             role="@SahityaRoy07"
             avatar="https://unavatar.io/twitter/SahityaRoy07"
             href="https://x.com/SahityaRoy07"
           />
         </Reveal>
         <Reveal delay={0.1}>
-          <TestimonialCard type="image" brand="Nulig" bg="linear-gradient(160deg,#1a3a2a,#2d5c42)" />
+          <TestimonialCard type="image" image="/cto.png" bg="linear-gradient(160deg,#1a3a2a,#2d5c42)" />
         </Reveal>
       </div>
     </Section>
