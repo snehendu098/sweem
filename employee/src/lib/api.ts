@@ -73,25 +73,70 @@ export interface AddEmployeeInput {
   rates: RateInput[]
 }
 
+export type InvoiceStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID'
+
+export interface Invoice {
+  id: string
+  orgWallet: string
+  employeeId: string
+  amount: string
+  token: string
+  description: string
+  status: InvoiceStatus
+  dueDate: string | null
+  attachmentKey: string | null
+  note: string | null
+  createdAt: string
+  paidAt: string | null
+}
+
+export interface EmployeeOrgEntry {
+  orgWallet: string
+  orgName: string
+  employeeId: string
+  alias: string
+}
+
+export interface CreateInvoiceInput {
+  org_wallet: string
+  amount: number
+  token: string
+  description: string
+  due_date?: string
+  attachment_key?: string
+}
+
 export function useSweemApi() {
   const account = useCurrentAccount()
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage()
   const wallet = account?.address
 
-  async function authedFetch(path: string, method: string, body?: unknown) {
+  // Sign one auth message. Backend validates signature + timestamp (60s TTL) with
+  // no nonce, so a single signature can authorize a burst of requests — reused to
+  // avoid a second wallet popup (e.g. upload attachment + create invoice).
+  type AuthCreds = { message: string; signature: string }
+  async function signAuth(): Promise<AuthCreds> {
     if (!account) throw new Error('Connect a wallet first')
     const message = authMessage()
     const { signature } = await signPersonalMessage({
       message: new TextEncoder().encode(message),
     })
+    return { message, signature }
+  }
+
+  function authHeaders(creds: AuthCreds): Record<string, string> {
+    if (!account) throw new Error('Connect a wallet first')
+    return {
+      'X-Wallet-Address': account.address,
+      'X-Signature': creds.signature,
+      'X-Message': creds.message,
+    }
+  }
+
+  async function sendAuthed(creds: AuthCreds, path: string, method: string, body?: unknown) {
     const res = await fetch(`${API_BASE}${path}`, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Wallet-Address': account.address,
-        'X-Signature': signature,
-        'X-Message': message,
-      },
+      headers: { 'Content-Type': 'application/json', ...authHeaders(creds) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     })
     if (!res.ok && res.status !== 409) {
@@ -101,6 +146,10 @@ export function useSweemApi() {
       status: res.status,
       data: res.status === 204 ? null : await res.json().catch(() => null),
     }
+  }
+
+  async function authedFetch(path: string, method: string, body?: unknown) {
+    return sendAuthed(await signAuth(), path, method, body)
   }
 
   async function get<T>(path: string): Promise<T> {
@@ -195,6 +244,31 @@ export function useSweemApi() {
       } catch {
         return null
       }
+    },
+
+    listEmployeeOrgs: (w: string) =>
+      get<EmployeeOrgEntry[]>(`/v1/employee/orgs?wallet=${w}`),
+
+    listEmployeeInvoices: (w: string, orgWallet?: string) =>
+      get<Invoice[]>(`/v1/employee/invoices?wallet=${w}${orgWallet ? `&orgWallet=${orgWallet}` : ''}`),
+
+    // Submit an invoice with one wallet signature. If a file is attached, the same
+    // signature authorizes both the upload and the create (reused within the 60s TTL).
+    submitInvoice: async (input: CreateInvoiceInput, file?: File | null) => {
+      const creds = await signAuth()
+      let attachment_key = input.attachment_key
+      if (file) {
+        const form = new FormData()
+        form.append('file', file)
+        const res = await fetch(`${API_BASE}/v1/employee/upload`, {
+          method: 'POST',
+          headers: authHeaders(creds),
+          body: form,
+        })
+        if (!res.ok) throw new Error(`Upload failed: ${await res.text()}`)
+        attachment_key = ((await res.json()) as { key: string }).key
+      }
+      return sendAuthed(creds, '/v1/employee/invoices', 'POST', { ...input, attachment_key })
     },
   }
 }

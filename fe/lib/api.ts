@@ -62,6 +62,24 @@ export interface Pool {
   onChainPoolId: string
 }
 
+export type InvoiceStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID'
+
+export interface Invoice {
+  id: string
+  orgWallet: string
+  employeeId: string
+  amount: string
+  token: string
+  description: string
+  status: InvoiceStatus
+  dueDate: string | null
+  attachmentKey: string | null
+  note: string | null
+  createdAt: string
+  paidAt: string | null
+  employee?: { alias: string; walletAddress: string }
+}
+
 export interface YieldQuote {
   protocol: 'NAVI' | 'SCALLOP'
   apy: number
@@ -300,5 +318,27 @@ export function useSweemApi() {
         return null
       }
     },
+
+    listOrgInvoices: (w: string, status?: string) =>
+      get<Invoice[]>(`/v1/orgs/${w}/invoices${status ? `?status=${status}` : ''}`),
+
+    updateOrgInvoice: (w: string, id: string, status: InvoiceStatus, note?: string) =>
+      authedFetch(`/v1/orgs/${w}/invoices/${id}`, 'PUT', { status, note }),
+
+    // Update many invoices with a SINGLE wallet signature (reused across every PUT
+    // within the 60s TTL) — e.g. approve all pending at once.
+    bulkUpdateOrgInvoices: async (
+      w: string,
+      updates: { id: string; status: InvoiceStatus; note?: string }[],
+    ) => {
+      if (updates.length === 0) return
+      const creds = await signAuth()
+      await Promise.all(
+        updates.map((u) =>
+          sendAuthed(creds, `/v1/orgs/${w}/invoices/${u.id}`, 'PUT', { status: u.status, note: u.note }),
+        ),
+      )
+    },
+
   }
 }

@@ -59,6 +59,7 @@ import { Icon } from "@/components/dashboard/icons";
 import { LiveTicker } from "./live-ticker";
 import { TokenTabs } from "./token-tabs";
 import { ActionButton, AllocRow, Modal, ProtocolRow, ConnectGate } from "./ui";
+import { InvoicesSection } from "./invoices-section";
 import { shortAddr } from "./helpers";
 
 // Saved allocation split (percentages routed off the wallet leg). The wallet leg
@@ -873,6 +874,8 @@ export function EmployeePortalScreen() {
           </div>
         </section>
       )}
+
+      <InvoicesSection />
 
       {/* invest dialog */}
       <Modal

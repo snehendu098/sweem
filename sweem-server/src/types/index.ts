@@ -7,6 +7,11 @@ export type AuthEnv = {
   Variables: { walletAddress: string }
 }
 
+export type EmployeeEnv = {
+  Bindings: Bindings
+  Variables: { walletAddress: string }
+}
+
 export type ApiError = {
   error: string
   message: string
