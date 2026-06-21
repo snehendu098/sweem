@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { toast } from "sonner";
-import { Loader2, TrendingUp } from "lucide-react";
+import { Check, ChevronDown, Loader2, TrendingUp } from "lucide-react";
 import { TokenTabs } from "./token-tabs";
 import { SlippageInput } from "./ui";
 import { TokenIcon } from "@/components/sweem-ui/token-icon";
@@ -64,6 +64,25 @@ export function TreasuryPanel() {
 
   const selected = protocols.find((p) => p.key === protocol) ?? protocols[0];
   const isUsdy = selected?.key === "usdy";
+
+  // Protocol picker dropdown (opens upward); close on outside click / Escape.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPickerOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [pickerOpen]);
 
   // Persist the auto-invest preference per token.
   useEffect(() => {
@@ -322,23 +341,69 @@ export function TreasuryPanel() {
               {symbol}
             </span>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {protocols.map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => setProtocol(p.key)}
+          <div className="relative" ref={pickerRef}>
+            <button
+              type="button"
+              onClick={() => setPickerOpen((o) => !o)}
+              aria-haspopup="listbox"
+              aria-expanded={pickerOpen}
+              className={cn(
+                "flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-colors sm:w-auto sm:min-w-[160px]",
+                pickerOpen
+                  ? "border-[var(--sw-border-strong)] bg-[var(--sw-card)] text-[var(--sw-text)]"
+                  : "border-[var(--sw-border)] text-[var(--sw-text)] hover:border-[var(--sw-border-strong)]"
+              )}
+            >
+              <span className="flex items-center gap-1.5">
+                <ProtocolLogo name={selected.key} size={18} />
+                {selected.label}
+              </span>
+              <ChevronDown
                 className={cn(
-                  "flex items-center gap-1.5 rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-colors",
-                  protocol === p.key
-                    ? "border-[var(--sw-border-strong)] bg-[var(--sw-card)] text-[var(--sw-text)]"
-                    : "border-[var(--sw-border)] text-[var(--sw-text-muted)] hover:text-[var(--sw-text)]"
+                  "size-4 text-[var(--sw-text-muted)] transition-transform",
+                  pickerOpen && "rotate-180"
                 )}
+              />
+            </button>
+
+            {pickerOpen && (
+              <div
+                role="listbox"
+                className="absolute bottom-full left-0 z-20 mb-2 w-full min-w-[200px] overflow-hidden rounded-xl border border-[var(--sw-border-strong)] bg-[var(--sw-card)] p-1 shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.7)]"
               >
-                <ProtocolLogo name={p.key} size={18} />
-                {p.label}
-              </button>
-            ))}
+                {protocols.map((p) => {
+                  const active = protocol === p.key;
+                  const apy = apyOf(p.key);
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      onClick={() => {
+                        setProtocol(p.key);
+                        setPickerOpen(false);
+                      }}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
+                        active
+                          ? "bg-[var(--sw-card-inset)] text-[var(--sw-text)]"
+                          : "text-[var(--sw-text-muted)] hover:bg-[var(--sw-card-inset)] hover:text-[var(--sw-text)]"
+                      )}
+                    >
+                      <ProtocolLogo name={p.key} size={18} />
+                      <span className="flex-1 text-left">{p.label}</span>
+                      {apy != null && (
+                        <span className="text-[11px] tabular-nums text-[var(--sw-text-dim)]">
+                          {apy.toFixed(2)}%
+                        </span>
+                      )}
+                      {active && <Check className="size-4 text-[var(--sw-mint)]" strokeWidth={2.5} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <button
             type="button"

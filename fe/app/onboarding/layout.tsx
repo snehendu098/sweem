@@ -11,7 +11,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <RequireWallet>
         <OnboardingChrome>{children}</OnboardingChrome>
       </RequireWallet>
-      <Toaster richColors position="bottom-right" />
+      <Toaster theme="dark" richColors position="bottom-right" />
     </>
   );
 }

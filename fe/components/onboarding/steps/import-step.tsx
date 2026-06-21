@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, RefreshCw, Trash2, Upload } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, RefreshCw, Sparkles, Trash2, Upload } from "lucide-react";
 import type { SweemApi } from "../onboarding-wizard";
 import type { BulkResult } from "@/lib/api";
 import { Card, GhostButton, PrimaryButton } from "../ui";
@@ -23,6 +23,13 @@ import { TOKEN_SYMBOLS, TOKENS, type TokenSymbol } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 
 type Phase = "upload" | "parsing" | "preview" | "done";
+
+// Demo team — real Sui addresses with tiny monthly salaries (each <= $1)
+// so the whole flow can be tried on mainnet for a few cents total.
+const DEMO_TEAM: { alias: string; wallet: string; rate: number; group: string }[] = [
+  { alias: "Alex Rivera", wallet: "0xfd5cffd7d18ca0597af1a43649adb389ba4d668aa4ba286a55c9d16bc9bd9142", rate: 0.3, group: "Engineering" },
+  { alias: "Mia Chen", wallet: "0x84af37f4f89106409e26e3fa8f87428327f18813595c12f02c878a9fe8ce035b", rate: 0.25, group: "Design" },
+];
 
 export function ImportStep({
   api,
@@ -69,6 +76,38 @@ export function ImportStep({
       toast.error((e as Error).message);
       setPhase("upload");
     }
+  }
+
+  async function loadDemo() {
+    setPhase("parsing");
+    let existingWallets = new Set<string>();
+    try {
+      const roster = await api.listEmployees(wallet);
+      existingWallets = new Set(roster.map((e) => e.walletAddress.toLowerCase()));
+    } catch {
+      /* fresh org */
+    }
+    const demoRows = DEMO_TEAM.map((d) =>
+      revalidate(
+        {
+          alias: d.alias,
+          wallet_address: d.wallet,
+          email: null,
+          group_name: d.group,
+          rate_amount: d.rate,
+          rate_type: "MONTHLY",
+          token: "USDC",
+          errors: [],
+          warnings: [],
+          action: "new",
+        },
+        existingWallets
+      )
+    );
+    setRows(demoRows);
+    setMeta(null);
+    setExisting(existingWallets);
+    setPhase("preview");
   }
 
   function updateRow(i: number, patch: Partial<ParsedEmployee>) {
@@ -157,6 +196,24 @@ export function ImportStep({
           </span>
           <span className="text-[12px] text-[var(--sw-text-dim)]">
             Columns like name, wallet address, salary, email, team
+          </span>
+        </button>
+
+        {/* demo shortcut */}
+        <div className="mt-3 flex items-center gap-3">
+          <span className="h-px flex-1 bg-[var(--sw-border)]" />
+          <span className="text-[11px] uppercase tracking-wide text-[var(--sw-text-dim)]">or</span>
+          <span className="h-px flex-1 bg-[var(--sw-border)]" />
+        </div>
+        <button
+          type="button"
+          onClick={loadDemo}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--sw-border)] bg-[var(--sw-card-inset)] px-4 py-3 text-[13px] font-medium text-[var(--sw-text)] transition-colors hover:border-[var(--sw-border-strong)]"
+        >
+          <Sparkles className="size-4 text-[var(--sw-mint)]" strokeWidth={2} />
+          Load demo team
+          <span className="rounded-md bg-[rgba(196,245,107,0.16)] px-1.5 py-0.5 text-[10.5px] font-semibold text-[var(--sw-mint)]">
+            under $1 total
           </span>
         </button>
       </Card>
