@@ -16,15 +16,10 @@ const app = new Hono<AppEnv>()
 // the ALLOWED_ORIGIN env var (comma-separated); defaults to the local Next.js dev
 // origin. We echo back the request origin when it is in the allowlist.
 app.use('*', cors({
-  origin: (origin, c) => {
-    // Public checkout config is called by the SDK from ANY merchant site — echo
-    // back whatever origin asks (it carries no credentials/cookies).
-    if (c.req.path.startsWith('/v1/checkout')) return origin ?? '*'
-    const allowed = (c.env.ALLOWED_ORIGIN ?? 'http://localhost:3000')
-      .split(',')
-      .map((o: string) => o.trim())
-    return allowed.includes(origin) ? origin : (allowed[0] ?? null)
-  },
+  // TEMP (pre-hackathon): allow ALL origins — echo back whatever asks. No
+  // cookies/credentials are used, so this is safe-ish. Revert to the
+  // ALLOWED_ORIGIN allowlist after submission.
+  origin: (origin) => origin ?? '*',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'X-Wallet-Address', 'X-Signature', 'X-Message'],
   maxAge: 600,
