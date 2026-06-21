@@ -7,12 +7,31 @@ export default function DocumentationPage() {
       <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">Documentation</h1>
       <p className="mt-1 text-[13.5px] text-[var(--sw-text-muted)]">
         Accept USDC &amp; SUI payments in your own app with the{" "}
-        <span className="font-medium text-[var(--sw-text)]">@sweem/sdk</span> SDK, one component, no
-        Sui setup required.
+        <a
+          href="https://www.npmjs.com/package/@sweem/sdk"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-[var(--sw-mint)] hover:underline"
+        >
+          @sweem/sdk
+        </a>{" "}
+        SDK, one component, no Sui setup required.
       </p>
 
       <H2>1. Install</H2>
-      <P>Add the SDK to your React or Next.js project. React 18+ is a peer dependency.</P>
+      <P>
+        Add the SDK to your React or Next.js project. React 18+ is a peer dependency. View the
+        package on{" "}
+        <a
+          href="https://www.npmjs.com/package/@sweem/sdk"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[var(--sw-mint)] hover:underline"
+        >
+          npm
+        </a>
+        .
+      </P>
       <CodeBlock code={`npm install @sweem/sdk`} />
 
       <H2>2. Get your API key</H2>

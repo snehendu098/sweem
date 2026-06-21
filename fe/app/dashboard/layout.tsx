@@ -10,7 +10,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <RequireWallet>
         <DashboardLayout>{children}</DashboardLayout>
       </RequireWallet>
-      <Toaster richColors position="bottom-right" />
+      <Toaster theme="dark" richColors position="bottom-right" />
     </>
   );
 }

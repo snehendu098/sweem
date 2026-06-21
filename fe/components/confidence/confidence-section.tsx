@@ -1,7 +1,6 @@
 import { Reveal } from "@/components/motion/reveal";
 import { Section } from "@/components/layout/section";
 import { SectionHeading } from "@/components/layout/section-heading";
-import { ImagePlaceholder } from "@/components/ui/image-placeholder";
 import { LaunchAppButton } from "@/components/shared/launch-app-button";
 
 function LockIcon() {
@@ -35,8 +34,13 @@ export function ConfidenceSection() {
       />
 
       <Reveal>
-        <div className="grid h-[360px] w-full place-items-center overflow-hidden rounded-[24px] border border-border bg-white md:h-[460px]">
-          <ImagePlaceholder iconSize="size-12" />
+        <div className="w-full overflow-hidden rounded-[24px] border border-border bg-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/sweep-long.png"
+            alt="Sweem payroll dashboard"
+            className="h-auto w-full object-cover"
+          />
         </div>
       </Reveal>
     </Section>

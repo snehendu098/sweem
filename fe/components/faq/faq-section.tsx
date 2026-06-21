@@ -66,10 +66,10 @@ export function FaqSection() {
         <Reveal>
           <div className="flex flex-col gap-4">
             <div className="grid h-[300px] w-full place-items-center overflow-hidden">
-              <div className="relative flex size-64 items-center justify-center">
+              <div className="relative flex h-full w-full items-center justify-center">
                 <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(196,245,107,0.22),transparent_70%)] blur-2xl" />
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/sweem.png" alt="Sweem" className="relative size-52 object-contain" />
+                <img src="/faq.png" alt="Frequently asked questions" className="relative h-full w-full rounded-[20px] object-contain" />
               </div>
             </div>
             <div className="rounded-[16px] border border-border bg-surface p-5">
@@ -82,7 +82,7 @@ export function FaqSection() {
                 size="sm"
                 className="mt-4 gap-1.5 rounded-full bg-brand-dark text-white hover:bg-brand-dark/90"
               >
-                <a href="#contact">
+                <a href="mailto:support.sweem@gmail.com">
                   Contact Us
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
                     <path d="M7 17L17 7M17 7H7M17 7v10" strokeLinecap="round" strokeLinejoin="round" />

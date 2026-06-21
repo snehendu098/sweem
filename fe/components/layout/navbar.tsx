@@ -6,7 +6,7 @@ import { Logo } from "@/components/shared/logo";
 import { LaunchAppButton } from "@/components/shared/launch-app-button";
 import { cn } from "@/lib/utils";
 
-type MenuItem = { name: string; sub: string; icon?: LucideIcon; logo?: string; soon?: boolean };
+type MenuItem = { name: string; sub: string; icon?: LucideIcon; logo?: string; soon?: boolean; href?: string };
 type Menu = { title: string; desc: string; items: MenuItem[] };
 
 const MENUS: Record<string, Menu> = {
@@ -15,7 +15,12 @@ const MENUS: Record<string, Menu> = {
     desc: "Stream payroll by the second and earn yield on idle cash. Run it from the dashboard, embed checkout with the SDK, or pay from your browser.",
     items: [
       { name: "Sweem", sub: "Streaming payroll on Sui", logo: "/sweem.png" },
-      { name: "Checkout SDK", sub: "@sweem/sdk · accept USDC & SUI", icon: Code2 },
+      {
+        name: "Checkout SDK",
+        sub: "@sweem/sdk · accept USDC & SUI",
+        icon: Code2,
+        href: "https://www.npmjs.com/package/@sweem/sdk",
+      },
       { name: "Chrome Extension", sub: "Pay from your browser", icon: Puzzle, soon: true },
     ],
   },
@@ -92,10 +97,14 @@ function MegaMenu({ menu }: { menu: Menu }) {
 
       {/* right — items */}
       <div className="grid grid-cols-1 gap-1 p-3 sm:grid-cols-2">
-        {menu.items.map((it) => (
+        {menu.items.map((it) => {
+          const external = !!it.href && it.href.startsWith("http");
+          return (
           <a
             key={it.name}
-            href="#product"
+            href={it.href ?? "#product"}
+            target={external ? "_blank" : undefined}
+            rel={external ? "noopener noreferrer" : undefined}
             className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/5"
           >
             <span
@@ -130,7 +139,8 @@ function MegaMenu({ menu }: { menu: Menu }) {
               <span className="block text-[11.5px] text-white/50">{it.sub}</span>
             </span>
           </a>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

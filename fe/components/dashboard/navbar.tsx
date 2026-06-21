@@ -1,4 +1,3 @@
-import { Icon } from "./icons";
 import { WalletButton } from "./wallet-button";
 
 export function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
@@ -21,20 +20,6 @@ export function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
       </div>
 
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="hidden items-center gap-2 rounded-full border border-[var(--sw-border)] px-3 py-1.5 text-[12.5px] font-medium text-[var(--sw-text-muted)] transition-colors hover:text-[var(--sw-text)] sm:flex"
-        >
-          <Icon name="support" size={15} strokeWidth={2.4} />
-          <span>Support</span>
-        </button>
-        <button
-          type="button"
-          className="hidden items-center gap-2 rounded-full border border-[var(--sw-border)] px-3 py-1.5 text-[12.5px] font-medium text-[var(--sw-text-muted)] transition-colors hover:text-[var(--sw-text)] sm:flex"
-        >
-          <Icon name="feedback" size={15} strokeWidth={2.4} />
-          <span>Feedback</span>
-        </button>
         <WalletButton />
       </div>
     </header>

@@ -92,7 +92,15 @@ import { SweemPayButton } from "@sweem/sdk";
           <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">API keys</h1>
           <p className="mt-1 text-[13.5px] text-[var(--sw-text-muted)]">
             Publishable keys for the{" "}
-            <span className="font-medium text-[var(--sw-text)]">@sweem/sdk</span> SDK.
+            <a
+              href="https://www.npmjs.com/package/@sweem/sdk"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[var(--sw-mint)] hover:underline"
+            >
+              @sweem/sdk
+            </a>{" "}
+            SDK.
           </p>
         </div>
         {keys.length > 0 && (
@@ -140,8 +148,15 @@ import { SweemPayButton } from "@sweem/sdk";
             </div>
             <p className="mt-3 text-[13px] leading-relaxed text-[var(--sw-text-muted)]">
               Generate a publishable key for a project, then drop it into the{" "}
-              <span className="font-medium text-[var(--sw-text)]">@sweem/sdk</span> SDK to start accepting
-              USDC &amp; SUI payments.
+              <a
+                href="https://www.npmjs.com/package/@sweem/sdk"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-[var(--sw-mint)] hover:underline"
+              >
+                @sweem/sdk
+              </a>{" "}
+              SDK to start accepting USDC &amp; SUI payments.
             </p>
             <button
               type="button"

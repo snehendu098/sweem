@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import {
   ArrowUpRight,
+  ChevronLeft,
   ChevronRight,
   Coins,
   Receipt,
@@ -585,6 +586,18 @@ function YieldCard({
   const suilend = yields?.find((y) => y.protocol === "SUILEND")?.apy;
   const usdy = yields?.find((y) => y.protocol === "USDY")?.apy;
 
+  const chips = [
+    { name: "Navi", amount: naviAmount, apy: navi, accent: "var(--sw-mint)" },
+    { name: "Scallop", amount: scallopAmount, apy: scallop, accent: "var(--sw-lavender)" },
+    { name: "Suilend", amount: suilendAmount, apy: suilend, accent: "#6bb8f5" },
+    { name: "USDY", amount: usdyAmount, apy: usdy, accent: "#f5c46b" },
+  ];
+
+  const PER_PAGE = 2;
+  const pages = Math.ceil(chips.length / PER_PAGE);
+  const [page, setPage] = useState(0);
+  const clampedPage = Math.min(page, pages - 1);
+
   return (
     <SweemCard className={`flex flex-col ${className ?? ""}`}>
       <div className="flex items-center justify-between">
@@ -594,12 +607,58 @@ function YieldCard({
       <MoneyValue value={earning} token={token} className="mt-2 text-[26px] leading-none" />
       <p className="mt-1 text-[12.5px] text-[var(--sw-text-dim)]">Idle funds invested in lending &amp; yield protocols</p>
 
-      <div className="mt-5 grid flex-1 grid-cols-2 gap-3">
-        <YieldChip name="Navi" amount={naviAmount} apy={navi} accent="var(--sw-mint)" />
-        <YieldChip name="Scallop" amount={scallopAmount} apy={scallop} accent="var(--sw-lavender)" />
-        <YieldChip name="Suilend" amount={suilendAmount} apy={suilend} accent="#6bb8f5" />
-        <YieldChip name="USDY" amount={usdyAmount} apy={usdy} accent="#f5c46b" />
+      <div className="mt-5 flex flex-1 items-center gap-2">
+        <button
+          type="button"
+          aria-label="Previous protocols"
+          onClick={() => setPage((p) => (p - 1 + pages) % pages)}
+          disabled={pages <= 1}
+          className="flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--sw-border)] text-[var(--sw-text-muted)] transition-colors hover:bg-[var(--sw-card-inset)] disabled:opacity-30"
+        >
+          <ChevronLeft className="size-4" strokeWidth={2.2} />
+        </button>
+
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div
+            className="flex transition-transform duration-300 ease-out"
+            style={{ transform: `translateX(-${clampedPage * 100}%)` }}
+          >
+            {Array.from({ length: pages }).map((_, pi) => (
+              <div key={pi} className="grid w-full shrink-0 grid-cols-2 gap-3">
+                {chips.slice(pi * PER_PAGE, pi * PER_PAGE + PER_PAGE).map((c) => (
+                  <YieldChip key={c.name} name={c.name} amount={c.amount} apy={c.apy} accent={c.accent} />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          aria-label="Next protocols"
+          onClick={() => setPage((p) => (p + 1) % pages)}
+          disabled={pages <= 1}
+          className="flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--sw-border)] text-[var(--sw-text-muted)] transition-colors hover:bg-[var(--sw-card-inset)] disabled:opacity-30"
+        >
+          <ChevronRight className="size-4" strokeWidth={2.2} />
+        </button>
       </div>
+
+      {pages > 1 && (
+        <div className="mt-3 flex items-center justify-center gap-1.5">
+          {Array.from({ length: pages }).map((_, pi) => (
+            <button
+              key={pi}
+              type="button"
+              aria-label={`Go to page ${pi + 1}`}
+              onClick={() => setPage(pi)}
+              className={`h-1.5 rounded-full transition-all ${
+                pi === clampedPage ? "w-4 bg-[var(--sw-text-muted)]" : "w-1.5 bg-[var(--sw-border)]"
+              }`}
+            />
+          ))}
+        </div>
+      )}
     </SweemCard>
   );
 }
