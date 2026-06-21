@@ -1,0 +1,114 @@
+{
+  "_comment": "Canonical Sweem MAINNET deployment. All ids are PUBLIC on-chain data (no secrets), committed as the single source of truth for the SDK / server / frontend / scripts. loadDeployed() falls back to this file when scripts/deployed.json (the gitignored local override) is absent.",
+
+  "sweemRegistryPkg": "0x06eae4d4c2c97ab2166f88cc310a4c6f0fc66e2f9583e01ad75c99b2951cfbbd",
+  "sweemCorePkg": "0x4c582aea3efe99fb68deea8b71b96eda6fba06001ed5588da83799c09f9179b4",
+  "sweemAdaptersPkg": "0x25070661b4157bcdfc1ac19df47dcf9472341b222debdc623a85ef383c11da58",
+
+  "accessControl": "0xf77b660fd90350dd7597e2042142157eeb564eea64b3870276e79d9d36b8cd98",
+  "protocolRegistry": "0xde3026a8847dc89b9b8ce456bf1e316dc60366e8564ac07bc55b50229e146dd8",
+  "protocolConfig": "0x303eb1778420425b1b590452bdaf039e4c6d46431bd502fdad028a305d3d04f1",
+
+  "clock": "0x6",
+  "suiSystemState": "0x5",
+
+  "adapterPackages": {
+    "_comment": "sweem_adapters holds navi+scallop+suilend+usdy. stSUI is its own dep-isolated package. alphalend is DEFERRED (orphan publish 0x7fcb, not wired).",
+    "sweemAdaptersPkg": "0x25070661b4157bcdfc1ac19df47dcf9472341b222debdc623a85ef383c11da58",
+    "sweemAdaptersStsuiPkg": "0x5f5a978fae2e07737e3cac2395ee30092d6c8512a98e18e785c250916d6c2090"
+  },
+
+  "adapterPackageHistory": {
+    "sweemAdaptersV1_navi_scallop": "0x8f0943975ec6f56f97e197713041b192e8ff9b4461c0a496bf129ed37b2866eb",
+    "sweemAdaptersV2_suilend": "0x65359daa00855a6049455bde596a508795e5319b208a2555974210414b6efbc7",
+    "sweemAdaptersV3_usdy": "0x25070661b4157bcdfc1ac19df47dcf9472341b222debdc623a85ef383c11da58"
+  },
+
+  "protocols": {
+    "navi": {
+      "yieldType": 0,
+      "yieldLabel": "L",
+      "scope": "pool+vault",
+      "adapterPkg": "0x25070661b4157bcdfc1ac19df47dcf9472341b222debdc623a85ef383c11da58",
+      "module": "navi",
+      "objects": {
+        "lendingCorePkg": "0x1e4a13a0494d5facdbe8473e74127b838c2d446ecec0ce262e2eddafa77259cb",
+        "storage": "0xbb4e2f4b6205c2e2a2db47aeb4f830796ec7c005f88537ee775986639bc442fe",
+        "priceOracle": "0x1568865ed9a0b5ec414220e8f79b3d04c77acc82358f6e5ae4635687392ffbef",
+        "incentiveV2": "0xf87a8acb8b81d14307894d12595541a73f19933f88e1326d5be349c7a6f7559c",
+        "incentiveV3": "0x62982dad27fb10bb314b3384d5de8d2ac2d72ab2dbeae5d801dbdb9efa816c80",
+        "usdcPool": "0xa3582097b4c57630046c0c49a88bfc6b202a3ec0a9db5597c31765f7563755a8",
+        "usdcAssetId": 10
+      }
+    },
+    "scallop": {
+      "yieldType": 0,
+      "yieldLabel": "L",
+      "scope": "pool+vault",
+      "adapterPkg": "0x25070661b4157bcdfc1ac19df47dcf9472341b222debdc623a85ef383c11da58",
+      "module": "scallop",
+      "objects": {
+        "version": "0x07871c4b3c847a0f674510d4978d5cf6f960452795e8ff6f189fd2088a3f6ac7",
+        "market": "0xa757975255146dc9686aa823b7838b507f315d704f428cbadad2f4ea061939d9"
+      }
+    },
+    "suilend": {
+      "yieldType": 0,
+      "yieldLabel": "L",
+      "scope": "pool+vault",
+      "adapterPkg": "0x25070661b4157bcdfc1ac19df47dcf9472341b222debdc623a85ef383c11da58",
+      "module": "suilend",
+      "objects": {
+        "suilendPkg": "0xf95b06141ed4a174f239417323bde3f209b972f5930d8521ea38a52aff3a6ddf",
+        "lendingMarket": "0x84030d26d85eaa7035084a057f2f11f701b7e2e4eda87551becbc7c97505ece1",
+        "marketWitness": "0xf95b06141ed4a174f239417323bde3f209b972f5930d8521ea38a52aff3a6ddf::suilend::MAIN_POOL",
+        "usdcReserveArrayIndex": 7,
+        "suiReserveArrayIndex": 0
+      }
+    },
+    "stsui": {
+      "yieldType": 2,
+      "yieldLabel": "S",
+      "scope": "vault-only",
+      "_scopeNote": "LST. Org/pool funds are NOT allowed in LSTs — adapter exposes only vault_invest/vault_withdraw, no pool functions.",
+      "adapterPkg": "0x5f5a978fae2e07737e3cac2395ee30092d6c8512a98e18e785c250916d6c2090",
+      "module": "stsui",
+      "objects": {
+        "lstInfo": "0x1adb343ab351458e151bc392fbf1558b3332467f23bda45ae67cd355a57fd5f5",
+        "suiSystemState": "0x5",
+        "stsuiType": "0xd1b72982e40348d069bb1ff701e634c117bb5f741f44dff91e472d3b01461e55::stsui::STSUI",
+        "underlying": "0x2::sui::SUI"
+      }
+    },
+    "usdy": {
+      "yieldType": 1,
+      "yieldLabel": "Y",
+      "scope": "pool+vault",
+      "_model": "Thin dep-free hold-adapter. The USDC<->USDY swap happens in the UI/PTB (Cetus aggregator), NOT on-chain. Functions are generic over Y. Invest/withdraw are 2-step extract->(UI swap)->deposit, made atomic by a no-abilities hot-potato receipt. No cover_claim (a USDY position cannot auto-convert to the base token on-chain).",
+      "adapterPkg": "0x25070661b4157bcdfc1ac19df47dcf9472341b222debdc623a85ef383c11da58",
+      "module": "usdy",
+      "objects": {
+        "usdyType": "0x960b531667636f39e85867775f52f6b1f220a058c4de786905bdf761e06a56bb::usdy::USDY",
+        "cetusUsdyUsdcPool": "0x0e809689d04d87f4bd4e660cd1b84bf5448c5a7997e3d22fc480e7e5e0b3f58d",
+        "_cetusPoolNote": "Pool<USDY, wormholeUSDC>; wormhole USDC = 0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN. Thin liquidity — size swaps small + always pass aggregator min_out."
+      }
+    }
+  },
+
+  "deferred": {
+    "alphalend": {
+      "yieldType": 0,
+      "yieldLabel": "L",
+      "status": "deferred",
+      "reason": "Redundant 4th L-protocol. Hand-vendored interface linkage does not match the deployed package (0xee754fc0) closure -> publish fails. Revisit with the official AlphaLend interface git-dep at the deployed commit.",
+      "orphanPublish": "0x7fcb9df2b2381853e425f96a15dae08f8a82aaaf6b1a3b2fd671b73b6e8e2f06",
+      "lendingProtocol": "0x01d9cf05d65fa3a9bb7163095139120e3c4e414dfbab153a49779a7d14010b93",
+      "latestPkg": "0xee754fc0c6d977403c9218cedbfffed033b4b42b50a65c2c3f1c7be13efeafd2"
+    }
+  },
+
+  "coins": {
+    "usdc": "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC",
+    "sui": "0x2::sui::SUI"
+  }
+}

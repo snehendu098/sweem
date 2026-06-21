@@ -123,19 +123,28 @@ export interface Deployed {
 }
 
 const DEPLOYED_PATH = resolve(SCRIPTS_DIR, 'deployed.json')
+// Canonical, committed mainnet ids (all public on-chain data). Used when the
+// gitignored local override deployed.json is absent.
+const MAINNET_PATH = resolve(SCRIPTS_DIR, 'deployed.mainnet.json')
 
 let _deployed: Record<string, unknown> | null = null
 
 function rawDeployed(): Record<string, unknown> {
   if (_deployed) return _deployed
+  // Prefer the local override (deployed.json); fall back to the committed
+  // canonical mainnet file so the scripts work out-of-the-box on mainnet.
   let text: string
   try {
     text = readFileSync(DEPLOYED_PATH, 'utf8')
   } catch {
-    throw new Error(
-      `Missing ${DEPLOYED_PATH}. Deploy the 3 Sweem packages yourself ` +
-        `(\`sui client publish\`), then copy deployed.example.json -> deployed.json and fill the IDs.`,
-    )
+    try {
+      text = readFileSync(MAINNET_PATH, 'utf8')
+    } catch {
+      throw new Error(
+        `Missing ${DEPLOYED_PATH} (and fallback ${MAINNET_PATH}). Deploy the Sweem ` +
+          `packages (\`sui client publish\`), then copy deployed.example.json -> deployed.json and fill the IDs.`,
+      )
+    }
   }
   _deployed = JSON.parse(text) as Record<string, unknown>
   return _deployed
