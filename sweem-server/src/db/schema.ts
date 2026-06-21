@@ -25,7 +25,7 @@ export const emailVerifications = pgTable('email_verifications', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-// Publishable API keys for the @sweem/react checkout SDK. One org can have many.
+// Publishable API keys for the @sweem/sdk checkout SDK. One org can have many.
 // `receivingAddress` is OPTIONAL — when null the checkout falls back to the org's
 // own wallet address. `revokedAt` null = active.
 export const apiKeys = pgTable('api_keys', {

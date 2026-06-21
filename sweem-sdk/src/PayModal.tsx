@@ -85,7 +85,7 @@ export function PayModal(props: PayModalProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, apiKey, apiBase]);
 
-  const tokens = useMemo(
+  const tokens = useMemo<TokenSymbol[]>(
     () => (lockedToken ? [lockedToken] : config?.tokens ?? ["USDC", "SUI"]),
     [lockedToken, config],
   );

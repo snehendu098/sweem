@@ -771,6 +771,171 @@ export function vaultInvestScallopTx(vaultId: string, amountRaw: bigint, token: 
   return tx
 }
 
+// ----- merchant treasury: fund a vault bucket from the connected wallet, invest,
+// withdraw. Reuses the deployed employee_vault + adapters (no contract changes). ---
+
+export type YieldProtocol = 'navi' | 'scallop'
+
+// employee_vault::deposit_to_bucket<T> — move `amountRaw` of the caller's wallet
+// balance into the vault's token bucket (idle). Bucket must already exist.
+export function depositToBucketTx(
+  vaultId: string,
+  amountRaw: bigint,
+  token: TokenConfig = TOKENS.USDC,
+): Transaction {
+  const tx = new Transaction()
+  const pay = coinWithBalance({ type: token.coinType, balance: amountRaw })
+  tx.moveCall({
+    target: `${CORE}::employee_vault::deposit_to_bucket`,
+    typeArguments: [token.coinType],
+    arguments: [tx.object(vaultId), tx.pure.string(token.bucketName), pay],
+  })
+  return tx
+}
+
+// One-PTB treasury deposit: optionally init the token bucket, deposit wallet funds
+// into it, then invest the same amount into Navi or Scallop for yield.
+export function treasuryInvestTx(opts: {
+  vaultId: string
+  token: TokenConfig
+  protocol: YieldProtocol
+  amountRaw: bigint
+  needsBucket: boolean
+  needsNaviCap: boolean
+}): Transaction {
+  const { vaultId, token, protocol, amountRaw, needsBucket, needsNaviCap } = opts
+  const tx = new Transaction()
+  const vault = tx.object(vaultId)
+
+  if (needsBucket) {
+    tx.moveCall({
+      target: `${CORE}::employee_vault::init_bucket`,
+      typeArguments: [token.coinType],
+      arguments: [vault, tx.pure.string(token.bucketName)],
+    })
+  }
+
+  const pay = coinWithBalance({ type: token.coinType, balance: amountRaw })
+  tx.moveCall({
+    target: `${CORE}::employee_vault::deposit_to_bucket`,
+    typeArguments: [token.coinType],
+    arguments: [vault, tx.pure.string(token.bucketName), pay],
+  })
+
+  if (protocol === 'navi') {
+    if (needsNaviCap) {
+      const cap = tx.moveCall({ target: `${NAVI_LENDING_CORE_PKG}::lending::create_account` })
+      tx.moveCall({
+        target: `${ADAPTERS}::navi::store_vault_account_cap`, // NON-generic
+        arguments: [vault, cap],
+      })
+    }
+    tx.moveCall({
+      target: `${ADAPTERS}::navi::vault_invest_navi`,
+      typeArguments: [token.coinType],
+      arguments: [
+        vault,
+        tx.pure.string(token.bucketName),
+        tx.object(NAVI_STORAGE),
+        tx.object(token.navi.poolId),
+        tx.object(NAVI_INCENTIVE_V2),
+        tx.object(NAVI_INCENTIVE_V3),
+        tx.object(PROTOCOL_REGISTRY),
+        tx.object(CLOCK),
+        tx.pure.u8(token.navi.assetId),
+        tx.pure.u64(amountRaw),
+      ],
+    })
+  } else {
+    tx.moveCall({
+      target: `${ADAPTERS}::scallop::vault_invest_scallop`,
+      typeArguments: [token.coinType],
+      arguments: [
+        vault,
+        tx.pure.string(token.bucketName),
+        tx.object(SCALLOP_VERSION),
+        tx.object(SCALLOP_MARKET),
+        tx.object(PROTOCOL_REGISTRY),
+        tx.object(CLOCK),
+        tx.pure.u64(amountRaw),
+      ],
+    })
+  }
+  return tx
+}
+
+// navi::vault_withdraw_navi<T> — pull invested principal from Navi back into the
+// vault's idle bucket balance.
+export function vaultWithdrawNaviTx(
+  vaultId: string,
+  amountRaw: bigint,
+  token: TokenConfig = TOKENS.USDC,
+): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${ADAPTERS}::navi::vault_withdraw_navi`,
+    typeArguments: [token.coinType],
+    arguments: [
+      tx.object(vaultId),
+      tx.pure.string(token.bucketName),
+      tx.object(NAVI_STORAGE),
+      tx.object(token.navi.poolId),
+      tx.object(NAVI_INCENTIVE_V2),
+      tx.object(NAVI_INCENTIVE_V3),
+      tx.object(NAVI_PRICE_ORACLE),
+      tx.object(PROTOCOL_CONFIG),
+      tx.object(CLOCK),
+      tx.object(PROTOCOL_REGISTRY),
+      tx.pure.u8(token.navi.assetId),
+      tx.pure.u64(amountRaw),
+    ],
+  })
+  return tx
+}
+
+// scallop::vault_withdraw_scallop<T> — pull invested principal from Scallop back
+// into the vault's idle bucket balance.
+export function vaultWithdrawScallopTx(
+  vaultId: string,
+  amountRaw: bigint,
+  token: TokenConfig = TOKENS.USDC,
+): Transaction {
+  const tx = new Transaction()
+  tx.moveCall({
+    target: `${ADAPTERS}::scallop::vault_withdraw_scallop`,
+    typeArguments: [token.coinType],
+    arguments: [
+      tx.object(vaultId),
+      tx.pure.string(token.bucketName),
+      tx.object(SCALLOP_VERSION),
+      tx.object(SCALLOP_MARKET),
+      tx.object(PROTOCOL_CONFIG),
+      tx.object(PROTOCOL_REGISTRY),
+      tx.object(CLOCK),
+      tx.pure.u64(amountRaw),
+    ],
+  })
+  return tx
+}
+
+// employee_vault::withdraw_from_bucket<T> — move idle bucket funds back to the
+// caller's wallet.
+export function withdrawToWalletTx(
+  vaultId: string,
+  amountRaw: bigint,
+  recipient: string,
+  token: TokenConfig = TOKENS.USDC,
+): Transaction {
+  const tx = new Transaction()
+  const [coin] = tx.moveCall({
+    target: `${CORE}::employee_vault::withdraw_from_bucket`,
+    typeArguments: [token.coinType],
+    arguments: [tx.object(vaultId), tx.pure.string(token.bucketName), tx.pure.u64(amountRaw)],
+  })
+  tx.transferObjects([coin], tx.pure.address(recipient))
+  return tx
+}
+
 // Locate this token's TokenBucket dynamic-object-field object id under a vault.
 async function findVaultBucketId(
   client: SuiJsonRpcClient,

@@ -38,7 +38,7 @@ const navItems: readonly NavItem[] = [
   },
   { icon: "invoice", label: "Invoices", href: "/dashboard/invoices" },
   { icon: "box", label: "Products", href: "/dashboard/products" },
-  { icon: "bank", label: "Offramp to Bank", href: "/dashboard/offramp", badge: "New" },
+  { icon: "bank", label: "Offramp to Bank", href: "/dashboard/offramp", badge: "Coming soon" },
   {
     icon: "developer",
     label: "Developer",
@@ -179,10 +179,10 @@ export function Sidebar({
                   <Icon name={item.icon} size={18} />
                 </span>
                 {!collapsed && (
-                  <span className="relative z-10 flex flex-1 items-center justify-between">
-                    <span>{item.label}</span>
+                  <span className="relative z-10 flex flex-1 items-center justify-between gap-1.5">
+                    <span className="whitespace-nowrap">{item.label}</span>
                     {item.badge && (
-                      <span className="rounded bg-[rgba(196,245,107,0.16)] px-1 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide text-[var(--sw-mint)]">
+                      <span className="shrink-0 whitespace-nowrap rounded bg-[rgba(196,245,107,0.16)] px-1 py-0.5 text-[8.5px] font-semibold text-[var(--sw-mint)]">
                         {item.badge}
                       </span>
                     )}

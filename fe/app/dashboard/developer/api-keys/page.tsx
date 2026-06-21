@@ -7,6 +7,7 @@ import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, Trash2, X } from "luc
 import { isValidSuiAddress } from "@mysten/sui/utils";
 import { cn } from "@/lib/utils";
 import { useSweemApi, type ApiKeyRow } from "@/lib/api";
+import { TreasuryPanel } from "@/components/dashboard/sweem/treasury-panel";
 
 const mask = (k: string) => `${k.slice(0, 11)}${"•".repeat(12)}${k.slice(-4)}`;
 const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -27,7 +28,7 @@ export default function ApiKeysPage() {
 NEXT_PUBLIC_SWEEM_API_KEY=${keys[0]?.key ?? "pk_live_xxx"}
 
 // component
-import { SweemPayButton } from "@sweem/react";
+import { SweemPayButton } from "@sweem/sdk";
 
 <SweemPayButton
   apiKey={process.env.NEXT_PUBLIC_SWEEM_API_KEY!}
@@ -91,7 +92,7 @@ import { SweemPayButton } from "@sweem/react";
           <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--sw-text)]">API keys</h1>
           <p className="mt-1 text-[13.5px] text-[var(--sw-text-muted)]">
             Publishable keys for the{" "}
-            <span className="font-medium text-[var(--sw-text)]">@sweem/react</span> SDK.
+            <span className="font-medium text-[var(--sw-text)]">@sweem/sdk</span> SDK.
           </p>
         </div>
         {keys.length > 0 && (
@@ -139,7 +140,7 @@ import { SweemPayButton } from "@sweem/react";
             </div>
             <p className="mt-3 text-[13px] leading-relaxed text-[var(--sw-text-muted)]">
               Generate a publishable key for a project, then drop it into the{" "}
-              <span className="font-medium text-[var(--sw-text)]">@sweem/react</span> SDK to start accepting
+              <span className="font-medium text-[var(--sw-text)]">@sweem/sdk</span> SDK to start accepting
               USDC &amp; SUI payments.
             </p>
             <button
@@ -213,6 +214,9 @@ import { SweemPayButton } from "@sweem/react";
           </pre>
         </div>
       </div>
+
+      {/* Earn yield on received payments */}
+      <TreasuryPanel />
 
       <CreateKeyModal
         open={createOpen}

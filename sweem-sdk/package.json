@@ -1,5 +1,5 @@
 {
-  "name": "@sweem/react",
+  "name": "@sweem/sdk",
   "version": "0.1.0",
   "description": "Drop-in crypto checkout for React — accept USDC & SUI payments on the Sui network with a single component.",
   "license": "MIT",

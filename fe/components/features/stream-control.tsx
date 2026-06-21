@@ -55,7 +55,12 @@ function StreamRow({ name, status, onToggle, onStop }: { name: string; status: S
 
   return (
     <div className="flex items-center gap-3">
-      <span className="w-9 shrink-0 text-[12px] font-medium text-white/70">{name}</span>
+      <span className="flex items-center gap-2 shrink-0">
+        <span className="flex size-6 items-center justify-center rounded-full bg-white/10 text-[10px] font-semibold text-white/80 ring-1 ring-white/15">
+          {name.charAt(0)}
+        </span>
+        <span className="w-9 text-[12px] font-medium text-white/70">{name}</span>
+      </span>
 
       <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
         {active ? (
