@@ -22,12 +22,13 @@ function ImagePlaceholderIcon() {
 export type TestimonialCardProps =
   | {
       type: "image";
-      brand: string;
+      brand?: string;
       bg?: string;
+      image?: string;
     }
   | {
       type: "quote";
-      logo: React.ReactNode;
+      logo?: React.ReactNode;
       quote: string;
       name: string;
       role: string;
@@ -43,13 +44,20 @@ export function TestimonialCard(props: TestimonialCardProps) {
         className="relative flex h-full min-h-[240px] w-full items-end overflow-hidden rounded-[20px]"
         style={{ background: props.bg ?? "#dce8f0" }}
       >
-        <div className="grid h-full w-full place-items-center">
-          <ImagePlaceholderIcon />
-        </div>
-        <div className="absolute bottom-4 left-4 flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-semibold text-[#101828] backdrop-blur-sm">
-          <span className="size-2 rounded-full bg-[#101828]" />
-          {props.brand}
-        </div>
+        {props.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={props.image} alt={props.brand ?? ""} className="absolute inset-0 h-full w-full object-cover" />
+        ) : (
+          <div className="grid h-full w-full place-items-center">
+            <ImagePlaceholderIcon />
+          </div>
+        )}
+        {props.brand ? (
+          <div className="absolute bottom-4 left-4 flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-semibold text-[#101828] backdrop-blur-sm">
+            <span className="size-2 rounded-full bg-[#101828]" />
+            {props.brand}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -57,7 +65,7 @@ export function TestimonialCard(props: TestimonialCardProps) {
   return (
     <div className={`flex h-full flex-col justify-between rounded-[20px] p-5 ${props.light ? "bg-[#f7f8fa]" : "bg-white ring-1 ring-[#eef0f3]"}`}>
       <div>
-        <div className="mb-4">{props.logo}</div>
+        {props.logo ? <div className="mb-4">{props.logo}</div> : null}
         <p className="text-[14px] leading-[1.6] text-[#1a2535]">{props.quote}</p>
       </div>
       <a
