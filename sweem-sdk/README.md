@@ -1,4 +1,4 @@
-# @sweem/react
+# @sweem/sdk
 
 A drop in crypto checkout component for React. Accept USDC and SUI payments on the Sui network with a single component. Sweem handles wallet connection, the on chain transfer, and the confirmation experience, so you can collect payments without writing any blockchain code.
 
@@ -11,7 +11,7 @@ The component bundles its own wallet and data fetching providers, so the host ap
 ## Installation
 
 ```bash
-npm install @sweem/react
+npm install @sweem/sdk
 ```
 
 `react` and `react-dom` (version 18 or later) are peer dependencies and are expected to be present in the host project.
@@ -31,7 +31,7 @@ NEXT_PUBLIC_SWEEM_API_KEY=pk_live_xxxxxxxxxxxxxxxx
 ## Quick start
 
 ```tsx
-import { SweemPayButton } from "@sweem/react";
+import { SweemPayButton } from "@sweem/sdk";
 
 export function Checkout() {
   return (
@@ -85,7 +85,7 @@ Use the `render` prop to connect the checkout flow to your own button or menu it
 If your application already wraps the `@mysten/dapp-kit` providers, render the modal directly and reuse the existing wallet context instead of the bundled provider.
 
 ```tsx
-import { PayModal } from "@sweem/react";
+import { PayModal } from "@sweem/sdk";
 
 <PayModal open={open} onClose={close} apiKey={KEY} amount={20} />;
 ```

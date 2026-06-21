@@ -1,4 +1,4 @@
-// @sweem/react — drop-in crypto checkout for the Sui network.
+// @sweem/sdk — drop-in crypto checkout for the Sui network.
 
 export { SweemPayButton, type SweemPayButtonProps } from "./SweemPayButton";
 export { PayModal, type PayModalProps } from "./PayModal";
