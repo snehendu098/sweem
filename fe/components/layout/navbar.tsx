@@ -6,15 +6,17 @@ import { Logo } from "@/components/shared/logo";
 import { LaunchAppButton } from "@/components/shared/launch-app-button";
 import { cn } from "@/lib/utils";
 
-type MenuItem = { name: string; sub: string; icon?: LucideIcon; logo?: string; soon?: boolean; href?: string };
+type MenuItem = { name: string; sub: string; icon?: LucideIcon; logo?: string; soon?: boolean; href?: string; launch?: boolean };
 type Menu = { title: string; desc: string; items: MenuItem[] };
+
+const DOCS_URL = "https://docs.sweem.org";
 
 const MENUS: Record<string, Menu> = {
   Product: {
     title: "The Sweem platform",
     desc: "Stream payroll by the second and earn yield on idle cash. Run it from the dashboard, embed checkout with the SDK, or pay from your browser.",
     items: [
-      { name: "Sweem", sub: "Streaming payroll on Sui", logo: "/sweem.png" },
+      { name: "Sweem", sub: "Streaming payroll on Sui", logo: "/sweem.png", launch: true },
       {
         name: "Checkout SDK",
         sub: "@sweem/sdk · accept USDC & SUI",
@@ -54,10 +56,13 @@ export function Navbar() {
         <nav className="flex items-center gap-1 rounded-full p-1">
           {links.map((link) => {
             const hasMenu = !!MENUS[link];
+            const isDocs = link === "Docs";
             return (
               <a
                 key={link}
-                href={`#${link.toLowerCase()}`}
+                href={isDocs ? DOCS_URL : `#${link.toLowerCase()}`}
+                target={isDocs ? "_blank" : undefined}
+                rel={isDocs ? "noopener noreferrer" : undefined}
                 onMouseEnter={() => setOpen(hasMenu ? link : null)}
                 className="rounded-full px-4 py-1.5 text-[13px] font-medium text-white/60 transition-colors hover:text-white"
               >
@@ -75,7 +80,12 @@ export function Navbar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <a className="hidden text-[13px] font-medium text-white sm:inline" href="#docs">
+        <a
+          className="hidden text-[13px] font-medium text-white sm:inline"
+          href={DOCS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Docs
         </a>
         <LaunchAppButton className="rounded-full bg-[#c4f56b] px-5 py-2 text-[13px] font-semibold text-[#0a0c10] shadow-sm">
@@ -99,14 +109,10 @@ function MegaMenu({ menu }: { menu: Menu }) {
       <div className="grid grid-cols-1 gap-1 p-3 sm:grid-cols-2">
         {menu.items.map((it) => {
           const external = !!it.href && it.href.startsWith("http");
-          return (
-          <a
-            key={it.name}
-            href={it.href ?? "#product"}
-            target={external ? "_blank" : undefined}
-            rel={external ? "noopener noreferrer" : undefined}
-            className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/5"
-          >
+          const itemClass =
+            "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/5";
+          const inner = (
+            <>
             <span
               className={cn(
                 "flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl",
@@ -138,7 +144,27 @@ function MegaMenu({ menu }: { menu: Menu }) {
               </span>
               <span className="block text-[11.5px] text-white/50">{it.sub}</span>
             </span>
-          </a>
+            </>
+          );
+
+          if (it.launch) {
+            return (
+              <LaunchAppButton key={it.name} className={itemClass}>
+                {inner}
+              </LaunchAppButton>
+            );
+          }
+
+          return (
+            <a
+              key={it.name}
+              href={it.href ?? "#product"}
+              target={external ? "_blank" : undefined}
+              rel={external ? "noopener noreferrer" : undefined}
+              className={itemClass}
+            >
+              {inner}
+            </a>
           );
         })}
       </div>
